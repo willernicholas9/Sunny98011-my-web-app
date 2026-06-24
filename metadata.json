@@ -1,0 +1,6 @@
+{
+  "name": "Hot Spot Work Shop",
+  "description": "Connect home and business owners with local contractors in their area for any size project, featuring smart mileage radius filters, secure payment models, contractor profiles, reviews, and dynamic notifications.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
