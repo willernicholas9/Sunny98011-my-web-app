@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { Project, Bid, UserRole } from "../types";
-import { MapPin, Phone, Mail, FileText, CheckCircle, Lock, Shield, ArrowRight, DollarSign, Image, Share2, Copy, Check, Twitter, Facebook, Linkedin, X } from "lucide-react";
+import { MapPin, Phone, Mail, FileText, CheckCircle, Lock, Shield, ArrowRight, DollarSign, Image, Share2, Copy, Check, Twitter, Facebook, Linkedin, X, Upload, Trash2, Plus, Eye, ChevronLeft, ChevronRight } from "lucide-react";
 import ProjectMiniMap from "./ProjectMiniMap";
+import { CITIES, getDistance } from "../data/cities";
 
 interface ProjectCardProps {
   key?: string | number;
@@ -15,6 +16,13 @@ interface ProjectCardProps {
   onAcceptBid?: (bidId: string) => void;
   onCompleteProject?: () => void;
   onStartChat?: (recipientId: string, recipientName: string, recipientRole: "customer" | "contractor") => void;
+  onCounterBid?: (bidId: string, amount: number, message: string) => void;
+  onContractorAcceptCounter?: (bidId: string) => void;
+  onContractorDeclineCounter?: (bidId: string) => void;
+  onContractorCounter?: (bidId: string, amount: number, message: string) => void;
+  onViewOnMap?: (projectId: string) => void;
+  onSimulateContractorBid?: (projectId: string) => void;
+  onUpdateProjectImages?: (projectId: string, images: string[]) => void;
 }
 
 export default function ProjectCard({
@@ -28,6 +36,13 @@ export default function ProjectCard({
   onAcceptBid,
   onCompleteProject,
   onStartChat,
+  onCounterBid,
+  onContractorAcceptCounter,
+  onContractorDeclineCounter,
+  onContractorCounter,
+  onViewOnMap,
+  onSimulateContractorBid,
+  onUpdateProjectImages,
 }: ProjectCardProps) {
   const [bidAmount, setBidAmount] = useState<string>("");
   const [bidMessage, setBidMessage] = useState<string>("");
@@ -36,6 +51,115 @@ export default function ProjectCard({
   const [showShareModal, setShowShareModal] = useState(false);
   const [copied, setCopied] = useState(false);
   const [activeSharePlatform, setActiveSharePlatform] = useState<"twitter" | "facebook" | "linkedin">("twitter");
+  
+  const [counterAmount, setCounterAmount] = useState<string>("");
+  const [counterMessage, setCounterMessage] = useState<string>("");
+  const [activeCounterBidId, setActiveCounterBidId] = useState<string | null>(null);
+
+  const [isDragging, setIsDragging] = useState(false);
+  const [selectedImageForLightbox, setSelectedImageForLightbox] = useState<string | null>(null);
+
+  const presetReferenceImages = [
+    {
+      name: "🔨 Framing & Decking",
+      url: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?auto=format&fit=crop&w=500&q=80",
+    },
+    {
+      name: "🎨 Wall Painting",
+      url: "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?auto=format&fit=crop&w=500&q=80",
+    },
+    {
+      name: "🌿 Landscaping/Lawn",
+      url: "https://images.unsplash.com/photo-1558904541-efa8c1a68f6f?auto=format&fit=crop&w=500&q=80",
+    },
+    {
+      name: "🔧 Plumbing & Tools",
+      url: "https://images.unsplash.com/photo-1581244277943-fe4a9c777189?auto=format&fit=crop&w=500&q=80",
+    },
+  ];
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (!onUpdateProjectImages) return;
+
+    const files = Array.from(e.dataTransfer.files) as File[];
+    processFiles(files);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && onUpdateProjectImages) {
+      const files = Array.from(e.target.files) as File[];
+      processFiles(files);
+    }
+  };
+
+  const processFiles = (files: File[]) => {
+    const imageFiles = files.filter(file => file.type.startsWith("image/"));
+    if (imageFiles.length === 0) {
+      alert("Only standard image formats (PNG, JPG, WEBP) are supported.");
+      return;
+    }
+
+    let loadedCount = 0;
+    const loadedUrls: string[] = [];
+
+    imageFiles.forEach(file => {
+      if (file.size > 5 * 1024 * 1024) {
+        alert(`Skipping ${file.name} because it exceeds the 5MB file size boundary.`);
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result && typeof event.target.result === "string") {
+          loadedUrls.push(event.target.result);
+        }
+        loadedCount++;
+        if (loadedCount === imageFiles.length) {
+          const currentImages = project.images || [];
+          const updatedImages = [...currentImages, ...loadedUrls];
+          if (onUpdateProjectImages) {
+            onUpdateProjectImages(project.id, updatedImages);
+          }
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleRemoveImage = (indexToRemove: number) => {
+    if (!window.confirm("Are you sure you want to delete this reference image?")) return;
+    const currentImages = project.images || [];
+    const updatedImages = currentImages.filter((_, idx) => idx !== indexToRemove);
+    if (onUpdateProjectImages) {
+      onUpdateProjectImages(project.id, updatedImages);
+      if (activeImageIdx >= updatedImages.length) {
+        setActiveImageIdx(Math.max(0, updatedImages.length - 1));
+      }
+    }
+  };
+
+  const handleAddPresetImage = (url: string) => {
+    const currentImages = project.images || [];
+    if (currentImages.includes(url)) {
+      alert("This preset reference image has already been uploaded.");
+      return;
+    }
+    const updatedImages = [...currentImages, url];
+    if (onUpdateProjectImages) {
+      onUpdateProjectImages(project.id, updatedImages);
+    }
+  };
 
   const customerLastNameInitial = project.customerLastName ? `${project.customerLastName.charAt(0)}.` : "";
   const isOwner = currentUser && currentUser.id === project.customerId;
@@ -46,6 +170,13 @@ export default function ProjectCard({
   const canSeePrivateDetails = isOwner || (isAcceptedContractor && isFullyAgreedAndAccepted);
 
   const projectServiceFee = project.budget <= 25000 ? 5 : 20;
+
+  const baseCity = currentCityName || currentUser?.city || "Austin";
+  const userCityObj = CITIES.find((c) => c.name.toLowerCase() === baseCity.toLowerCase()) || CITIES[0];
+  const projectCityObj = CITIES.find((c) => c.name.toLowerCase() === project.city.toLowerCase()) || CITIES[0];
+  const computedDistance = distanceToProject !== undefined && distanceToProject !== null
+    ? distanceToProject
+    : getDistance(userCityObj.lat, userCityObj.lng, projectCityObj.lat, projectCityObj.lng);
 
   const handleBidSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,16 +256,22 @@ export default function ProjectCard({
                 <span>Share</span>
               </button>
             </div>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-zinc-500">
               <span className="flex items-center gap-1">
                 <MapPin className="w-3.5 h-3.5 text-zinc-400" />
                 {project.city}, {project.state} ({project.zipCode})
               </span>
-              {distanceToProject !== undefined && distanceToProject !== null && (
-                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-zinc-100 text-[11px] font-medium text-amber-700">
-                  ⚡ {distanceToProject} miles from {currentCityName}
-                </span>
-              )}
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full bg-zinc-100 text-[11px] font-medium text-amber-700">
+                ⚡ {computedDistance} miles from {baseCity}
+              </span>
+              <button
+                type="button"
+                onClick={() => onViewOnMap && onViewOnMap(project.id)}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-600 hover:text-amber-700 bg-amber-50 hover:bg-amber-100/80 px-2 py-0.5 rounded-md transition border border-amber-200/40 cursor-pointer"
+                title="View this vacancy on the interactive Google Map directory"
+              >
+                📍 View on Map
+              </button>
             </div>
           </div>
           <div className="text-right">
@@ -152,11 +289,128 @@ export default function ProjectCard({
           <p className="text-zinc-600 text-sm leading-relaxed whitespace-pre-line bg-zinc-50/50 p-4 rounded-xl border border-zinc-100 flex-1">
             {project.description}
           </p>
-          {currentCityName && (
-            <ProjectMiniMap
-              userCityName={currentCityName}
-              projectCityName={project.city}
-            />
+          <ProjectMiniMap
+            userCityName={baseCity}
+            projectCityName={project.city}
+          />
+        </div>
+
+        {/* Dynamic Project Reference Image Gallery Block */}
+        <div className="border border-zinc-200 rounded-2xl p-5 bg-zinc-50/30 space-y-4 mb-6" id={`reference-images-panel-${project.id}`}>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-150 pb-3">
+            <div className="space-y-0.5">
+              <h4 className="text-xs font-bold text-zinc-800 uppercase tracking-wider flex items-center gap-1.5">
+                <Image className="w-4 h-4 text-amber-500" />
+                <span>Job Reference Images</span>
+                <span className="bg-zinc-100 text-zinc-700 text-[10px] px-1.5 py-0.25 rounded-full font-semibold">
+                  {(project.images || []).length}
+                </span>
+              </h4>
+              <p className="text-[11px] text-zinc-500">
+                Visual references assist local tradesmen to estimate correctly and secure competitive bids.
+              </p>
+            </div>
+          </div>
+
+          {/* Reference Thumbnails Grid */}
+          {(project.images && project.images.length > 0) ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-3">
+              {project.images.map((img, idx) => (
+                <div key={idx} className="group relative aspect-video bg-zinc-100 rounded-xl overflow-hidden border border-zinc-200 shadow-3xs hover:border-amber-400 transition-all duration-200">
+                  <img
+                    src={img}
+                    alt={`Reference ${idx + 1}`}
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedImageForLightbox(img)}
+                      className="p-1.5 bg-white text-zinc-800 hover:bg-zinc-100 rounded-lg shadow-sm transition-transform hover:scale-105"
+                      title="View full size reference image"
+                    >
+                      <Eye className="w-3.5 h-3.5" />
+                    </button>
+                    {isOwner && (
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveImage(idx)}
+                        className="p-1.5 bg-red-600 text-white hover:bg-red-700 rounded-lg shadow-sm transition-transform hover:scale-105"
+                        title="Delete this reference image"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  <span className="absolute bottom-1 left-1 px-1 bg-black/60 text-white text-[9px] font-mono rounded-md">
+                    #{idx + 1}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-4 bg-zinc-50 border border-zinc-200 rounded-xl text-center text-zinc-400 italic text-xs">
+              No reference images have been attached to this project request yet.
+            </div>
+          )}
+
+          {/* Owner interactive Drag & Drop uploader and presets list */}
+          {isOwner && (
+            <div className="space-y-4 pt-2">
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => document.getElementById(`file-input-${project.id}`)?.click()}
+                className={`border-2 border-dashed rounded-xl p-5 text-center cursor-pointer transition-all duration-250 flex flex-col items-center justify-center gap-2 ${
+                  isDragging
+                    ? "border-amber-500 bg-amber-50/60"
+                    : "border-zinc-250 hover:border-amber-400 bg-white hover:bg-zinc-50/20"
+                }`}
+                title="Select and upload standard workspace photos"
+              >
+                <input
+                  type="file"
+                  id={`file-input-${project.id}`}
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+                <div className="p-2 bg-amber-50 rounded-full text-amber-500">
+                  <Upload className="w-4 h-4 text-amber-600" />
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-xs font-bold text-zinc-700">
+                    Drag & drop reference images here, or <span className="text-amber-600 hover:underline">click to browse</span>
+                  </p>
+                  <p className="text-[10px] text-zinc-400">
+                    Supports PNG, JPG, JPEG, WEBP formats up to 5MB.
+                  </p>
+                </div>
+              </div>
+
+              {/* Preset Injections Section */}
+              <div className="space-y-2">
+                <span className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest block">
+                  Quick-Add Reference Design Presets
+                </span>
+                <div className="flex flex-wrap gap-2">
+                  {presetReferenceImages.map((preset) => (
+                    <button
+                      key={preset.name}
+                      type="button"
+                      onClick={() => handleAddPresetImage(preset.url)}
+                      className="bg-white hover:bg-zinc-50 border border-zinc-200 hover:border-amber-300 rounded-xl px-3 py-1.5 text-[11px] text-zinc-700 font-semibold transition flex items-center gap-1 cursor-pointer shadow-3xs"
+                    >
+                      <Plus className="w-3 h-3 text-amber-500" />
+                      <span>{preset.name}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
@@ -244,7 +498,7 @@ export default function ProjectCard({
                   <div key={bid.id} className={`p-4 rounded-xl border text-xs transition-all ${
                     isActiveBid
                       ? "border-amber-500 bg-amber-50/40"
-                      : "border-zinc-100 bg-zinc-50/50 hover:bg-zinc-50"
+                      : "border-zinc-200 bg-zinc-50/50 hover:bg-zinc-50"
                   }`}>
                     <div className="flex justify-between items-center mb-2">
                       <div className="font-semibold text-zinc-900">
@@ -261,28 +515,255 @@ export default function ProjectCard({
                         )}
                       </div>
                     </div>
-                    <p className="text-zinc-600 leading-relaxed italic bg-white/60 p-2.5 rounded-lg border border-zinc-100">{bid.message}</p>
-                    
-                    {/* Owner Action: Accept Bid / Chat with Bidder */}
+                    <p className="text-zinc-600 leading-relaxed italic bg-white/60 p-2.5 rounded-lg border border-zinc-150">"{bid.message}"</p>
+
+                    {/* COMMUNICATION LOGS & TIMELINE */}
+                    {bid.history && bid.history.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-zinc-200/60 space-y-2">
+                        <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest block">
+                          🤝 Negotiation & communication history
+                        </span>
+                        <div className="space-y-2 pl-2 border-l border-zinc-200">
+                          {bid.history.map((step, idx) => (
+                            <div key={idx} className="relative text-[11px] text-zinc-600">
+                              <div className="absolute -left-[13px] top-1.5 w-1.5 h-1.5 rounded-full bg-amber-500" />
+                              <div className="font-bold text-zinc-800 flex justify-between items-center">
+                                <span className="capitalize text-[10px] tracking-tight bg-zinc-100 text-zinc-700 px-1 py-0.25 rounded-md">
+                                  Proposal by {step.senderRole === "customer" ? "Owner" : "Contractor"}
+                                </span>
+                                <span className="text-[9px] text-zinc-400 font-mono">
+                                  {new Date(step.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                </span>
+                              </div>
+                              <div className="flex flex-wrap gap-2 items-center mt-0.5">
+                                <span className="font-bold text-zinc-900 font-mono bg-white border border-zinc-150 px-1.5 py-0.25 rounded">
+                                  ${step.amount.toLocaleString()}
+                                </span>
+                                <p className="italic text-zinc-500">"{step.message}"</p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Dynamic Contractor Status Notifications & Actions */}
+                    {currentUser?.role === "contractor" && currentUser.id === bid.contractorId && (
+                      <div className="mt-3 pt-3 border-t border-zinc-200/50 flex flex-col gap-2">
+                        <div className="flex justify-between items-center text-[10px] font-bold tracking-tight">
+                          <span className="text-zinc-400 uppercase">Your Bid Status:</span>
+                          {bid.status === "pending" && (
+                            <span className="text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-md border border-amber-200">⌛ Pending Review</span>
+                          )}
+                          {bid.status === "counter_by_customer" && (
+                            <span className="text-red-600 bg-red-50 px-2.5 py-0.5 rounded-md border border-red-200 animate-pulse">⚡ Counter-Offer Received!</span>
+                          )}
+                          {bid.status === "counter_by_contractor" && (
+                            <span className="text-blue-600 bg-blue-50 px-2.5 py-0.5 rounded-md border border-blue-200">⌛ Counter-Offer Submitted</span>
+                          )}
+                          {bid.status === "declined" && (
+                            <span className="text-zinc-500 bg-zinc-100 px-2.5 py-0.5 rounded-md border border-zinc-200">✕ Declined</span>
+                          )}
+                          {bid.status === "accepted" && (
+                            <span className="text-green-600 bg-green-50 px-2.5 py-0.5 rounded-md border border-green-200">✓ Accepted!</span>
+                          )}
+                        </div>
+
+                        {bid.status === "counter_by_customer" && (
+                          <div className="flex gap-2 justify-end items-center flex-wrap mt-2">
+                            {activeCounterBidId === bid.id ? (
+                              <div className="w-full bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 space-y-3">
+                                <h5 className="text-[10px] font-bold text-amber-900 uppercase">Send Counter Proposal</h5>
+                                <div className="flex gap-2">
+                                  <div className="w-24 shrink-0">
+                                    <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">My Offer ($)</label>
+                                    <input
+                                      type="number"
+                                      value={counterAmount}
+                                      onChange={(e) => setCounterAmount(e.target.value)}
+                                      placeholder="e.g. 525"
+                                      className="w-full bg-white border border-zinc-200 rounded-lg p-1.5 text-xs focus:ring-1 focus:ring-amber-500 font-bold"
+                                    />
+                                  </div>
+                                  <div className="flex-1">
+                                    <label className="block text-[9px] font-bold text-zinc-400 uppercase mb-1">Message clarification</label>
+                                    <input
+                                      type="text"
+                                      value={counterMessage}
+                                      onChange={(e) => setCounterMessage(e.target.value)}
+                                      placeholder="Explain your price details..."
+                                      className="w-full bg-white border border-zinc-200 rounded-lg p-1.5 text-xs focus:ring-1 focus:ring-amber-500"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="flex justify-end gap-1.5 text-[10px]">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveCounterBidId(null);
+                                      setCounterAmount("");
+                                      setCounterMessage("");
+                                    }}
+                                    className="px-2 py-1 text-zinc-500"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const amt = parseFloat(counterAmount);
+                                      if (isNaN(amt) || amt <= 0) {
+                                        alert("Please enter a valid amount.");
+                                        return;
+                                      }
+                                      if (!counterMessage.trim()) {
+                                        alert("Please include a supportive message.");
+                                        return;
+                                      }
+                                      if (onContractorCounter) {
+                                        onContractorCounter(bid.id, amt, counterMessage);
+                                        setActiveCounterBidId(null);
+                                        setCounterAmount("");
+                                        setCounterMessage("");
+                                      }
+                                    }}
+                                    className="bg-amber-600 text-white font-bold px-3 py-1 rounded-lg"
+                                  >
+                                    Submit Counter
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex gap-2 justify-end w-full">
+                                <button
+                                  type="button"
+                                  onClick={() => onContractorAcceptCounter && onContractorAcceptCounter(bid.id)}
+                                  className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-[10px] transition shadow-xs"
+                                >
+                                  ✓ Accept Owner's Counter (${bid.amount.toLocaleString()})
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setCounterAmount(bid.amount.toString());
+                                    setActiveCounterBidId(bid.id);
+                                  }}
+                                  className="bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-950 font-bold px-3 py-1.5 rounded-lg text-[10px] transition"
+                                >
+                                  ⚡ Counter Back
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => onContractorDeclineCounter && onContractorDeclineCounter(bid.id)}
+                                  className="bg-zinc-200 hover:bg-zinc-300 text-zinc-700 font-bold px-3 py-1.5 rounded-lg text-[10px] transition"
+                                >
+                                  ✕ Decline
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Owner Actions: Accept Bid / Counter-Offer / Chat */}
                     {isOwner && (
-                      <div className="mt-3 flex gap-2 justify-end">
-                        <button
-                          type="button"
-                          onClick={() => onStartChat && onStartChat(bid.contractorId, bid.contractorName, "contractor")}
-                          className="bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-700 font-bold px-3 py-1.5 rounded-lg text-[10px] transition shadow-3xs flex items-center gap-1.5"
-                          title="Message this professional regarding bid specifications"
-                        >
-                          💬 Chat with Bidder
-                        </button>
-                        {project.status === "open" && (
-                          <button
-                            type="button"
-                            onClick={() => onAcceptBid && onAcceptBid(bid.id)}
-                            className="bg-zinc-900 hover:bg-zinc-800 text-white font-semibold px-3 py-1.5 rounded-lg text-[10px] transition shadow-xs flex items-center gap-1.5"
-                            id={`accept-bid-${bid.id}`}
-                          >
-                            Select Contractor <ArrowRight className="w-3 h-3" />
-                          </button>
+                      <div className="mt-3 flex gap-2 justify-end items-center flex-wrap">
+                        {activeCounterBidId === bid.id ? (
+                          <div className="w-full bg-amber-500/5 border border-amber-500/20 rounded-xl p-3 space-y-3">
+                            <h5 className="text-[11px] font-bold text-amber-900 uppercase">Send Counter-Offer Proposal</h5>
+                            <div className="flex gap-3">
+                              <div className="w-28 shrink-0">
+                                <label className="block text-[10px] font-bold text-zinc-400 uppercase mb-1">Your Price ($)</label>
+                                <input
+                                  type="number"
+                                  value={counterAmount}
+                                  onChange={(e) => setCounterAmount(e.target.value)}
+                                  placeholder="e.g. 500"
+                                  className="w-full bg-white border border-zinc-200 rounded-lg p-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-hidden font-bold"
+                                />
+                              </div>
+                              <div className="flex-1">
+                                <label className="block text-[10px] font-bold text-zinc-400 uppercase mb-1">Message to Contractor</label>
+                                <input
+                                  type="text"
+                                  value={counterMessage}
+                                  onChange={(e) => setCounterMessage(e.target.value)}
+                                  placeholder="Provide why you are countering..."
+                                  className="w-full bg-white border border-zinc-200 rounded-lg p-1.5 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-hidden"
+                                />
+                              </div>
+                            </div>
+                            <div className="flex justify-end gap-2 text-xs">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setActiveCounterBidId(null);
+                                  setCounterAmount("");
+                                  setCounterMessage("");
+                                }}
+                                className="px-2 py-1 text-zinc-500 hover:text-zinc-700"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const amt = parseFloat(counterAmount);
+                                  if (isNaN(amt) || amt <= 0) {
+                                    alert("Please input a valid amount.");
+                                    return;
+                                  }
+                                  if (!counterMessage.trim()) {
+                                    alert("Please include a professional message.");
+                                    return;
+                                  }
+                                  if (onCounterBid) {
+                                    onCounterBid(bid.id, amt, counterMessage);
+                                    setActiveCounterBidId(null);
+                                    setCounterAmount("");
+                                    setCounterMessage("");
+                                  }
+                                }}
+                                className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-1 rounded-lg"
+                              >
+                                Send Proposal
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setCounterAmount(bid.amount.toString());
+                                setActiveCounterBidId(bid.id);
+                              }}
+                              className="bg-amber-50 hover:bg-amber-100 border border-amber-250 text-amber-950 font-bold px-3 py-1.5 rounded-lg text-[10px] transition shadow-3xs flex items-center gap-1 cursor-pointer"
+                            >
+                              🤝 Send Counter-Offer
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => onStartChat && onStartChat(bid.contractorId, bid.contractorName, "contractor")}
+                              className="bg-white hover:bg-zinc-50 border border-zinc-200 text-zinc-700 font-bold px-3 py-1.5 rounded-lg text-[10px] transition shadow-3xs flex items-center gap-1.5 cursor-pointer"
+                              title="Message this professional regarding bid specifications"
+                            >
+                              💬 Chat with Bidder
+                            </button>
+
+                            {project.status === "open" && (
+                              <button
+                                type="button"
+                                onClick={() => onAcceptBid && onAcceptBid(bid.id)}
+                                className="bg-zinc-950 hover:bg-zinc-850 text-white font-bold px-3 py-1.5 rounded-lg text-[10px] transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                                id={`accept-bid-${bid.id}`}
+                              >
+                                Select Contractor <ArrowRight className="w-3 h-3" />
+                              </button>
+                            )}
+                          </>
                         )}
                       </div>
                     )}
@@ -311,6 +792,18 @@ export default function ProjectCard({
           </div>
 
           <div className="flex gap-2 items-center flex-wrap">
+            {isOwner && (project.status === "open" || project.status === "bid_placed") && onSimulateContractorBid && (
+              <button
+                type="button"
+                onClick={() => onSimulateContractorBid(project.id)}
+                className="bg-amber-600 hover:bg-amber-700 text-white font-bold px-3 py-2 rounded-xl text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer"
+                title="Simulate a contractor submitting a bid on this listing to test push notification alerts"
+                id={`simulate-bid-btn-${project.id}`}
+              >
+                ⚡ Test Receive Bid Alert
+              </button>
+            )}
+
             {/* Private Chat Stakeholder Channels */}
             {currentUser?.role === "contractor" && (
               <button
@@ -744,6 +1237,33 @@ export default function ProjectCard({
           </div>
         )}
       </div>
+
+      {/* Lightbox Modal overlay for larger image viewing */}
+      {selectedImageForLightbox && (
+        <div
+          className="fixed inset-0 bg-zinc-950/80 z-50 flex items-center justify-center p-4 backdrop-blur-xs animate-fade-in"
+          onClick={() => setSelectedImageForLightbox(null)}
+        >
+          <div
+            className="relative max-w-4xl w-full bg-transparent flex flex-col items-center justify-center"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedImageForLightbox(null)}
+              className="absolute top-4 right-4 p-2 bg-black/60 hover:bg-black/80 text-white rounded-full transition-transform hover:scale-105 z-55 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+            <img
+              src={selectedImageForLightbox}
+              alt="Reference Full screen"
+              className="max-h-[85vh] object-contain rounded-2xl border border-zinc-800 shadow-2xl"
+              referrerPolicy="no-referrer"
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

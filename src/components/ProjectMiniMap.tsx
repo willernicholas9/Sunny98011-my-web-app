@@ -2,6 +2,50 @@ import React, { useMemo } from "react";
 import { CITIES, getDistance } from "../data/cities";
 import { Compass, Navigation, MapPin, Globe, ArrowUpRight, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, HelpCircle } from "lucide-react";
 
+// Custom elegant SVG map pin for the active user's base location
+function UserLocationPin() {
+  return (
+    <div className="relative flex items-center justify-center">
+      <span className="animate-ping absolute inline-flex h-4 w-4 rounded-full bg-cyan-400 opacity-60"></span>
+      <svg
+        viewBox="0 0 24 24"
+        className="relative w-5 h-5 text-cyan-400 drop-shadow-[0_2px_4px_rgba(6,182,212,0.5)] transition-transform duration-300 group-hover:scale-110"
+        fill="currentColor"
+      >
+        <path
+          d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+          stroke="#ffffff"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
+  );
+}
+
+// Custom elegant SVG map pin for the project/job site location
+function ProjectLocationPin() {
+  return (
+    <div className="relative flex items-center justify-center">
+      <span className="animate-ping absolute inline-flex h-4.5 w-4.5 rounded-full bg-rose-500 opacity-60"></span>
+      <svg
+        viewBox="0 0 24 24"
+        className="relative w-5.5 h-5.5 text-rose-500 drop-shadow-[0_2px_4px_rgba(244,63,94,0.5)] transition-transform duration-300 group-hover:scale-110"
+        fill="currentColor"
+      >
+        <path
+          d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"
+          stroke="#ffffff"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </div>
+  );
+}
+
 interface ProjectMiniMapProps {
   userCityName: string;
   projectCityName: string;
@@ -58,7 +102,6 @@ export default function ProjectMiniMap({
     else label = "North (N)";
 
     // Visual X, Y coordinate vectors within -1 to 1 bounds
-    // We base offsets on simple unit direction
     const visualDistance = Math.min(80, Math.max(25, (distance / 85) * 80));
     const plotX = Math.sin(bearingRad) * visualDistance;
     const plotY = -Math.cos(bearingRad) * visualDistance;
@@ -130,14 +173,11 @@ export default function ProjectMiniMap({
 
             {/* Base Coordinate Center (User's active base city) */}
             <div 
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col items-center group z-10"
-              style={{ transform: "translate(-50%, -50%)" }}
+              className="absolute top-1/2 left-1/2 flex flex-col items-center group z-10"
+              style={{ transform: "translate(-50%, -100%)" }}
             >
-              <div className="relative h-4 w-4 flex items-center justify-center">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-60"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-cyan-400 border border-white"></span>
-              </div>
-              <div className="absolute top-4 bg-zinc-900 border border-zinc-800 text-[8px] text-cyan-200 font-extrabold px-1.5 py-0.25 rounded-md whitespace-nowrap select-none scale-90 group-hover:scale-100 transition shadow-lg opacity-85 pointer-events-none uppercase">
+              <UserLocationPin />
+              <div className="absolute top-5 bg-zinc-900 border border-zinc-800 text-[8px] text-cyan-200 font-extrabold px-1.5 py-0.25 rounded-md whitespace-nowrap select-none scale-90 group-hover:scale-100 transition shadow-lg opacity-85 pointer-events-none uppercase">
                 Base: {userCityName}
               </div>
             </div>
@@ -147,13 +187,10 @@ export default function ProjectMiniMap({
               <div 
                 className="absolute top-1/2 left-1/2 flex flex-col items-center group z-20"
                 style={{ 
-                  transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))` 
+                  transform: `translate(calc(-50% + ${dx}px), calc(-100% + ${dy}px))` 
                 }}
               >
-                <div className="relative h-5 w-5 flex items-center justify-center">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                  <MapPin className="relative w-3.5 h-3.5 text-rose-500 fill-rose-500" />
-                </div>
+                <ProjectLocationPin />
                 <div className="absolute top-5 bg-rose-950 border border-rose-800 text-[8px] text-rose-100 font-extrabold px-1.5 py-0.25 rounded-md whitespace-nowrap scale-95 group-hover:scale-105 transition shadow-lg opacity-90 pointer-events-none uppercase">
                   Job: {projectCityName}
                 </div>
@@ -195,7 +232,7 @@ export default function ProjectMiniMap({
 
               {/* Start node */}
               <div className="flex flex-col items-center">
-                <Globe className="w-4 h-4 text-cyan-400" />
+                <UserLocationPin />
                 <span className="text-[8px] font-bold text-zinc-300 mt-1 uppercase">{userCityName}</span>
               </div>
 
@@ -206,7 +243,7 @@ export default function ProjectMiniMap({
 
               {/* End node */}
               <div className="flex flex-col items-center">
-                <MapPin className="w-4 h-4 text-rose-500 fill-rose-500" />
+                <ProjectLocationPin />
                 <span className="text-[8px] font-bold text-zinc-300 mt-1 uppercase">{projectCityName}</span>
               </div>
             </div>

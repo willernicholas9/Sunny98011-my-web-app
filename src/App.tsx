@@ -11,7 +11,10 @@ import EmailSimulator from "./components/EmailSimulator";
 import DashboardStats from "./components/DashboardStats";
 import PrivateChat from "./components/PrivateChat";
 import StripeHub from "./components/StripeHub";
-import { MapPin, Search, Mail, HelpCircle, HardHat, Sparkles, Plus, AlertCircle, RefreshCw, CheckCircle2, DollarSign, ArrowRight, ShieldCheck, Star, MessageSquare } from "lucide-react";
+import GoogleMapsDirectory from "./components/GoogleMapsDirectory";
+import OutreachCampaignsHub from "./components/OutreachCampaignsHub";
+import AutonomousAdInstallerAgent from "./components/AutonomousAdInstallerAgent";
+import { MapPin, Search, Mail, HelpCircle, HardHat, Sparkles, Plus, AlertCircle, RefreshCw, CheckCircle2, DollarSign, ArrowRight, ShieldCheck, Star, MessageSquare, Compass } from "lucide-react";
 
 export default function App() {
   // --- Persistent State Initialization ---
@@ -19,6 +22,12 @@ export default function App() {
     const saved = localStorage.getItem("hsws_currentUser");
     return saved ? JSON.parse(saved) : null;
   });
+
+  const [activePushNotification, setActivePushNotification] = useState<{
+    id: string;
+    title: string;
+    body: string;
+  } | null>(null);
 
   const [projects, setProjects] = useState<Project[]>(() => {
     const saved = localStorage.getItem("hsws_projects");
@@ -41,8 +50,17 @@ export default function App() {
   });
 
   // --- Filtering & Visual Controls ---
-  const [activeTab, setActiveTab] = useState<"projects" | "contractors" | "my_dashboard" | "stripe_hub">("projects");
+  const [activeTab, setActiveTab] = useState<"projects" | "contractors" | "my_dashboard" | "stripe_hub" | "outreach" | "ai_agent">("projects");
+  const [seniorMode, setSeniorMode] = useState<boolean>(() => {
+    const saved = localStorage.getItem("hsws_seniorMode");
+    return saved ? JSON.parse(saved) : false;
+  });
+  const [allCities, setAllCities] = useState<CityData[]>(() => {
+    const saved = localStorage.getItem("hsws_allCities");
+    return saved ? JSON.parse(saved) : CITIES;
+  });
   const [currentCityName, setCurrentCityName] = useState("Austin");
+  const [citySearchInput, setCitySearchInput] = useState("");
   const [radiusLimit, setRadiusLimit] = useState(70); // Miles slider
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTradeFilter, setSelectedTradeFilter] = useState("");
@@ -52,6 +70,8 @@ export default function App() {
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showEmailTracker, setShowEmailTracker] = useState(false);
+  const [showMapsDirectory, setShowMapsDirectory] = useState(false);
+  const [selectedMapProjectId, setSelectedMapProjectId] = useState<string | null>(null);
 
   // Private Chat States
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -116,8 +136,114 @@ export default function App() {
     localStorage.setItem("hsws_private_messages", JSON.stringify(privateMessages));
   }, [privateMessages]);
 
+  useEffect(() => {
+    localStorage.setItem("hsws_allCities", JSON.stringify(allCities));
+  }, [allCities]);
+
+  useEffect(() => {
+    localStorage.setItem("hsws_seniorMode", JSON.stringify(seniorMode));
+  }, [seniorMode]);
+
+  // Push notifications automatic dismissal timer
+  useEffect(() => {
+    if (activePushNotification) {
+      const timer = setTimeout(() => {
+        setActivePushNotification(null);
+      }, 6500);
+      return () => clearTimeout(timer);
+    }
+  }, [activePushNotification]);
+
+  // Web Audio chime generator (runs completely local & offline)
+  const playNotificationSound = () => {
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      oscillator.type = "sine";
+      // E6 to G6 high chime sound
+      oscillator.frequency.setValueAtTime(1318.51, audioCtx.currentTime); // E6
+      oscillator.frequency.setValueAtTime(1567.98, audioCtx.currentTime + 0.1); // G6
+      
+      gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+      
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.35);
+    } catch (e) {
+      console.warn("Web Audio API was blocked or unsupported.", e);
+    }
+  };
+
+  const triggerNotificationForProject = (proj: Project, bidAmount: number, contractorName: string, bypassUserCheck: boolean = false) => {
+    const isOwnerLogged = currentUser && currentUser.role === "customer" && currentUser.id === proj.customerId;
+    const notificationEnabled = currentUser?.pushNotificationsEnabled !== false;
+    
+    if (bypassUserCheck || (isOwnerLogged && notificationEnabled)) {
+      const title = "🔔 Hot Spot Workspace Alert";
+      const body = `New bid of $${bidAmount.toLocaleString()} submitted by ${contractorName} on your listing: "${proj.title}"`;
+      
+      if ("Notification" in window && Notification.permission === "granted") {
+        try {
+          new Notification(title, { body });
+        } catch (err) {
+          console.error("HTML5 Notification API failed:", err);
+        }
+      }
+      
+      setActivePushNotification({
+        id: `push-${Date.now()}`,
+        title,
+        body,
+      });
+      
+      playNotificationSound();
+    }
+  };
+
   // Find coordinate points for selected city filter
-  const activeCityData = CITIES.find((c) => c.name === currentCityName) || CITIES[0];
+  const activeCityData = allCities.find((c) => c.name.toLowerCase() === currentCityName.toLowerCase()) || allCities[0];
+
+  // Helper: Submit custom city state searches dynamically
+  const handleCustomCitySubmit = () => {
+    const query = citySearchInput.trim();
+    if (!query) return;
+
+    // Check if user specified a state separated by a comma (e.g. Austin, TX)
+    const parts = query.split(",");
+    const cityNameInput = parts[0].trim();
+    const stateNameInput = parts[1] ? parts[1].trim().toUpperCase() : "TX";
+
+    // Search case-insensitively in our active cities list
+    const found = allCities.find(
+      (c) => c.name.toLowerCase() === cityNameInput.toLowerCase()
+    );
+
+    if (found) {
+      setCurrentCityName(found.name);
+      setCitySearchInput("");
+      alert(`Viewer location center adjusted to ${found.name}, ${found.state}!`);
+    } else {
+      // Create a dynamic custom city and add it to our state list
+      const newCity: CityData = {
+        name: cityNameInput.charAt(0).toUpperCase() + cityNameInput.slice(1),
+        state: stateNameInput,
+        zipCode: Math.floor(10000 + Math.random() * 90000).toString(),
+        // Compute mock coordinates slightly offset from Austin's core
+        lat: 30.2672 + (Math.random() - 0.5) * 1.5,
+        lng: -97.7431 + (Math.random() - 0.5) * 1.5,
+      };
+
+      setAllCities((prev) => [...prev, newCity]);
+      setCurrentCityName(newCity.name);
+      setCitySearchInput("");
+      alert(`✨ Succeeded! Dynamic location "${newCity.name}, ${newCity.state}" was created and added to the map index. Distances updated.`);
+    }
+  };
 
   // Helper: Reset application back to initial state
   const handleResetData = () => {
@@ -126,6 +252,7 @@ export default function App() {
       setProjects(INITIAL_PROJECTS);
       setContractors(INITIAL_CONTRACTORS);
       setBids(INITIAL_BIDS);
+      setAllCities(CITIES);
       setEmailLogs([]);
       setCurrentUser(null);
       setPrivateMessages([]);
@@ -229,10 +356,56 @@ export default function App() {
     
     // Update parent project status
     setProjects((prev) =>
-      prev.map((proj) =>
-        proj.id === projectId ? { ...proj, status: "bid_placed" } : proj
+      prev.map((proj) => {
+        if (proj.id === projectId) {
+          triggerNotificationForProject(proj, amount, currentUser.fullName);
+          return { ...proj, status: "bid_placed" };
+        }
+        return proj;
+      })
+    );
+  };
+
+  // --- Simulation: Contractor places automated bid on a project (to test notifications) ---
+  const handleSimulateContractorBid = (projectId: string) => {
+    const proj = projects.find(p => p.id === projectId);
+    if (!proj) return;
+
+    const candidateContractors = contractors.length > 0 ? contractors : INITIAL_CONTRACTORS;
+    const randomContractor = candidateContractors[Math.floor(Math.random() * candidateContractors.length)];
+    
+    const randomBidId = `bid-sim-${Date.now()}`;
+    const competitiveAmount = Math.max(50, Math.round(proj.budget * (0.85 + Math.random() * 0.2)));
+    
+    const mockMessages = [
+      "I am highly specialized in this work. Can start tomorrow morning with professional equipment!",
+      "I have full general liability insurance on file. Ready to complete the project efficiently.",
+      "Placed a competitive estimate based on the specifications. Message me if you have any questions!",
+      "My team can handle this garden refurbishment in under 4 hours. Fully licensed and certified."
+    ];
+    const randomMessage = mockMessages[Math.floor(Math.random() * mockMessages.length)];
+
+    const simBid: Bid = {
+      id: randomBidId,
+      projectId,
+      contractorId: randomContractor.id,
+      contractorName: randomContractor.fullName,
+      contractorCompany: randomContractor.company || "Specialist Trades LLC",
+      amount: competitiveAmount,
+      message: randomMessage,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    };
+
+    setBids((prev) => [...prev, simBid]);
+
+    setProjects((prev) =>
+      prev.map((p) =>
+        p.id === projectId ? { ...p, status: "bid_placed" } : p
       )
     );
+
+    triggerNotificationForProject(proj, competitiveAmount, randomContractor.fullName);
   };
 
   // --- Select Bidder (Customer accepts Contractor's offer) ---
@@ -262,6 +435,209 @@ export default function App() {
     );
 
     alert("Contractor selected! The project status is now set to Active. You can coordinate mutual agreement details in your dashboard to unlock full contact credentials.");
+  };
+
+  // --- Customer sends a Counter-Offer to Contractor ---
+  const handleCounterBid = (bidId: string, amount: number, message: string) => {
+    if (!currentUser || currentUser.role !== "customer") {
+      alert("Only project owners can send counter-offers.");
+      return;
+    }
+
+    const targetBid = bids.find((b) => b.id === bidId);
+    if (!targetBid) return;
+
+    const previousStep = {
+      id: `step-${Date.now()}-prev`,
+      senderRole: "contractor" as const,
+      amount: targetBid.amount,
+      message: targetBid.message,
+      createdAt: targetBid.createdAt,
+    };
+
+    const newStep = {
+      id: `step-${Date.now()}`,
+      senderRole: "customer" as const,
+      amount,
+      message,
+      createdAt: new Date().toISOString(),
+    };
+
+    setBids((prev) =>
+      prev.map((b) => {
+        if (b.id === bidId) {
+          const currentHistory = b.history || [previousStep];
+          return {
+            ...b,
+            amount,
+            message,
+            status: "counter_by_customer" as const,
+            history: [...currentHistory, newStep],
+          };
+        }
+        return b;
+      })
+    );
+
+    // Dynamic Email simulator log for Contractor
+    const targetProject = projects.find((p) => p.id === targetBid.projectId);
+    const contractorObj = contractors.find((c) => c.id === targetBid.contractorId);
+
+    if (contractorObj && targetProject) {
+      setEmailLogs((prev) => [
+        {
+          id: `email-${Math.random().toString(36).substr(2, 9)}`,
+          recipientEmail: contractorObj.email,
+          recipientName: contractorObj.fullName,
+          subject: `[NEGOTIATION] Counter-offer received from ${currentUser.fullName}!`,
+          body: `Hi ${contractorObj.fullName},\n\n${currentUser.fullName} has responded with a counter-offer for your bid on the project "${targetProject.title}".\n\n💰 Proposing New Price: $${amount.toLocaleString()}\n💬 Message: "${message}"\n\nYou can accept this price, counter again, or decline the negotiation inside the app dashboard.\n\nBest regards,\nHot Spot Workspace SMTP Relays`,
+          timestamp: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+    }
+
+    alert(`Counter-offer of $${amount} sent to Contractor! SMTP notification log triggered.`);
+  };
+
+  // --- Contractor accepts Customer's Counter-Offer ---
+  const handleContractorAcceptCounter = (bidId: string) => {
+    if (!currentUser || currentUser.role !== "contractor") {
+      alert("Only contractor bidders can accept counters.");
+      return;
+    }
+
+    const targetBid = bids.find((b) => b.id === bidId);
+    if (!targetBid) return;
+
+    // Set bid status to accepted
+    setBids((prev) =>
+      prev.map((b) => {
+        if (b.id === bidId) {
+          return { ...b, status: "accepted" as const };
+        }
+        if (b.projectId === targetBid.projectId && b.id !== bidId) {
+          return { ...b, status: "declined" as const };
+        }
+        return b;
+      })
+    );
+
+    // Update parent project
+    setProjects((prev) =>
+      prev.map((proj) =>
+        proj.id === targetBid.projectId
+          ? {
+              ...proj,
+              status: "accepted" as const,
+              acceptedContractorId: currentUser.id,
+              budget: targetBid.amount, // adjust budget to the negotiated price
+            }
+          : proj
+      )
+    );
+
+    // Find project owner to notify via email log
+    const targetProject = projects.find((p) => p.id === targetBid.projectId);
+    if (targetProject) {
+      setEmailLogs((prev) => [
+        {
+          id: `email-${Math.random().toString(36).substr(2, 9)}`,
+          recipientEmail: targetProject.customerEmail,
+          recipientName: targetProject.customerFirstName,
+          subject: `[AGREEMENT] Contractor ${currentUser.fullName} accepted your counter-offer!`,
+          body: `Hi ${targetProject.customerFirstName},\n\nAccredited contractor ${currentUser.fullName} has accepted your counter-offer of $${targetBid.amount.toLocaleString()} for "${targetProject.title}"!\n\nThe project is now active! Please head over to your dashboard to complete final escrow agreement authorizations.\n\nBest regards,\nHot Spot Workspace SMTP Relays`,
+          timestamp: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+    }
+
+    alert("You accepted the customer's counter-offer! The project is now active. Coordinate details on your dashboard.");
+  };
+
+  // --- Contractor declines Customer's Counter-Offer ---
+  const handleContractorDeclineCounter = (bidId: string) => {
+    if (!currentUser || currentUser.role !== "contractor") {
+      alert("Only contractor bidders can decline counters.");
+      return;
+    }
+
+    const targetBid = bids.find((b) => b.id === bidId);
+    if (!targetBid) return;
+
+    setBids((prev) =>
+      prev.map((b) => (b.id === bidId ? { ...b, status: "declined" as const } : b))
+    );
+
+    const targetProject = projects.find((p) => p.id === targetBid.projectId);
+    if (targetProject) {
+      setEmailLogs((prev) => [
+        {
+          id: `email-${Math.random().toString(36).substr(2, 9)}`,
+          recipientEmail: targetProject.customerEmail,
+          recipientName: targetProject.customerFirstName,
+          subject: `[NEGOTIATION] Contractor declined your counter-offer`,
+          body: `Hi ${targetProject.customerFirstName},\n\nContractor ${currentUser.fullName} has declined your counter-offer for "${targetProject.title}".\n\nYou can chat with them directly or review other active bids in the forum.\n\nBest regards,\nHot Spot Workspace SMTP Relays`,
+          timestamp: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+    }
+
+    alert("Counter-offer declined.");
+  };
+
+  // --- Contractor sends Counter-Offer BACK to Customer ---
+  const handleContractorCounter = (bidId: string, amount: number, message: string) => {
+    if (!currentUser || currentUser.role !== "contractor") {
+      alert("Only contractor bidders can submit counter-offers.");
+      return;
+    }
+
+    const targetBid = bids.find((b) => b.id === bidId);
+    if (!targetBid) return;
+
+    const newStep = {
+      id: `step-${Date.now()}`,
+      senderRole: "contractor" as const,
+      amount,
+      message,
+      createdAt: new Date().toISOString(),
+    };
+
+    setBids((prev) =>
+      prev.map((b) => {
+        if (b.id === bidId) {
+          const currentHistory = b.history || [];
+          return {
+            ...b,
+            amount,
+            message,
+            status: "counter_by_contractor" as const,
+            history: [...currentHistory, newStep],
+          };
+        }
+        return b;
+      })
+    );
+
+    const targetProject = projects.find((p) => p.id === targetBid.projectId);
+    if (targetProject) {
+      setEmailLogs((prev) => [
+        {
+          id: `email-${Math.random().toString(36).substr(2, 9)}`,
+          recipientEmail: targetProject.customerEmail,
+          recipientName: targetProject.customerFirstName,
+          subject: `[NEGOTIATION] New counter-offer from contractor ${currentUser.fullName}`,
+          body: `Hi ${targetProject.customerFirstName},\n\nContractor ${currentUser.fullName} has submitted a counter-offer back to you for "${targetProject.title}".\n\n💰 New Price Proposed: $${amount.toLocaleString()}\n💬 Pitch: "${message}"\n\nPlease check your dashboard to review negotiation details.\n\nBest regards,\nHot Spot Workspace SMTP Relays`,
+          timestamp: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+    }
+
+    alert(`Counter-offer of $${amount} sent to Customer! SMTP email bulletin logged.`);
   };
 
   // --- Agree to Project Finalized ---
@@ -353,6 +729,12 @@ export default function App() {
     }
 
     alert("Wonderful! Job declared complete. The contractor score statistics have been elevated and Stripe escrow reserves have been cleared to your Available Balance!");
+  };
+
+  const handleUpdateProjectImages = (projectId: string, images: string[]) => {
+    setProjects((prev) =>
+      prev.map((proj) => (proj.id === projectId ? { ...proj, images } : proj))
+    );
   };
 
   // --- Add Review for Contractor ---
@@ -488,7 +870,7 @@ export default function App() {
   // The forum can be seen by any user who is in the city and 70 mile radius.
   const filteredProjects = projects.filter((project) => {
     // 1. Calculate distance between the viewer's activeCity and the project's city
-    const projectCityData = CITIES.find((c) => c.name === project.city) || CITIES[0];
+    const projectCityData = allCities.find((c) => c.name.toLowerCase() === project.city.toLowerCase()) || allCities[0];
     const distanceMiles = getDistance(
       activeCityData.lat,
       activeCityData.lng,
@@ -522,7 +904,7 @@ export default function App() {
     });
 
   return (
-    <div className="min-h-screen bg-zinc-50 flex flex-col font-sans select-none" id="applet-main-container">
+    <div className={`min-h-screen bg-zinc-50 flex flex-col font-sans select-none ${seniorMode ? "senior-mode" : ""}`} id="applet-main-container">
       
       {/* Platform Navigation */}
       <Navbar
@@ -543,9 +925,9 @@ export default function App() {
       />
 
       {/* Quick Interactive Role Switcher for seamless sandbox trials */}
-      <div className="bg-amber-500/10 border-b border-amber-500/20 py-2.5 px-4 text-xs font-semibold text-amber-900 flex flex-wrap gap-x-4 gap-y-2 items-center justify-between">
+      <div className="bg-blue-50/80 border-b border-blue-100 py-2.5 px-4 text-xs font-semibold text-blue-900 flex flex-wrap gap-x-4 gap-y-2 items-center justify-between shadow-3xs">
         <span className="flex items-center gap-1.5 shrink-0">
-          <Sparkles className="w-4 h-4 text-amber-600 animate-pulse" />
+          <Sparkles className="w-4 h-4 text-red-600 animate-pulse" />
           <span>Need to test roles? Toggle here instantly:</span>
         </span>
         <div className="flex gap-2">
@@ -555,7 +937,7 @@ export default function App() {
               setCurrentUser(custMock);
               alert("Switched role context details to John Doe (Homeowner). Free to post projects and accept bids!");
             }}
-            className="bg-white hover:bg-zinc-100 border border-amber-300 text-zinc-800 font-bold px-3 py-1 rounded-lg text-[11px] transition shadow-xs"
+            className="bg-white hover:bg-blue-50 border border-blue-200 text-blue-900 font-bold px-3 py-1.5 rounded-xl text-[11px] transition shadow-xs cursor-pointer"
           >
             Switch to Customer: John D.
           </button>
@@ -565,14 +947,14 @@ export default function App() {
               setCurrentUser(conMock);
               alert("Switched role context details to Michael Smith (Contractor). Free to bid and accept jobs!");
             }}
-            className="bg-zinc-900 hover:bg-zinc-800 text-white font-bold px-3 py-1 rounded-lg text-[11px] transition shadow-xs"
+            className="bg-blue-900 hover:bg-blue-950 text-white font-bold px-3 py-1.5 rounded-xl text-[11px] transition shadow-xs cursor-pointer"
           >
             Switch to Contractor: Mike S.
           </button>
           <button
             onClick={handleResetData}
             title="Wipes custom changes and starts over"
-            className="bg-zinc-500 hover:bg-zinc-650 text-white font-bold px-2.5 py-1 rounded-lg text-[10px] transition shadow-xs flex items-center gap-1"
+            className="bg-red-600 hover:bg-red-700 text-white font-bold px-2.5 py-1.5 rounded-xl text-[10px] transition shadow-xs flex items-center gap-1 cursor-pointer"
           >
             <RefreshCw className="w-3 h-3" /> Reset Seeds
           </button>
@@ -583,22 +965,34 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 space-y-8">
         
         {/* Banner Section */}
-        <section className="bg-radial from-amber-600 to-amber-700 text-white p-8 rounded-3xl shadow-sm text-center md:text-left relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-8 border border-amber-700">
-          <div className="absolute right-0 bottom-0 top-0 left-0 bg-[radial-gradient(circle_at_70%_20%,rgba(255,255,255,0.06)_0%,transparent_50%)] pointer-events-none" />
+        <section className="bg-gradient-to-br from-[#0c2340] via-[#1d2a44] to-[#0a192f] text-white p-8 rounded-3xl shadow-md text-center md:text-left relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-8 border border-zinc-800">
+          <div className="absolute right-0 bottom-0 top-0 left-0 bg-[radial-gradient(circle_at_70%_20%,rgba(225,29,72,0.1)_0%,transparent_50%)] pointer-events-none" />
           
           <div className="space-y-3 relative z-10 max-w-2xl">
-            <span className="inline-block px-3 py-1 bg-amber-500/30 text-amber-100 text-[10px] uppercase font-bold tracking-widest rounded-full border border-white/10">
-              ⚡ Local Professional Handyman Forum
+            <span className="inline-block px-3 py-1 bg-red-600/10 text-red-400 text-[10px] uppercase font-black tracking-widest rounded-full border border-red-500/20">
+              🇺🇸 USA Tradesmen Network & Hotspot
             </span>
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight font-display text-white">
               Connect Home & Business Owners with Specialized Trades
             </h1>
-            <p className="text-zinc-100 text-xs md:text-sm leading-relaxed font-medium">
+            <p className="text-slate-300 text-xs md:text-sm leading-relaxed font-medium">
               Post projects of any dimensions—from spreading black mulch, window glazing, gutter guards installation to TV mounting. Set your target price and query matching experts.
             </p>
           </div>
 
           <div className="shrink-0 relative z-10 flex flex-col sm:flex-row gap-3">
+            <button
+              onClick={() => {
+                setSelectedMapProjectId(null);
+                setShowMapsDirectory(true);
+              }}
+              className="px-6 py-3.5 bg-white hover:bg-zinc-100 text-blue-900 font-display font-black text-sm rounded-2xl transition shadow-lg flex items-center justify-center gap-2 border border-zinc-200 cursor-pointer"
+              id="open-maps-directory-hero-btn"
+              title="Open Google Maps Directory - View interactive project markers with dynamic hover tooltips showing titles & budgets"
+            >
+              <Compass className="w-5 h-5 text-blue-700 animate-pulse" /> View Google Maps Directory
+            </button>
+
             <button
               onClick={() => {
                 if (!currentUser) {
@@ -611,10 +1005,10 @@ export default function App() {
                 }
                 setShowProjectModal(true);
               }}
-              className="px-6 py-3.5 bg-zinc-950 hover:bg-zinc-850 text-white font-display font-black text-sm rounded-2xl transition shadow-lg flex items-center justify-center gap-2"
+              className="px-6 py-3.5 bg-red-600 hover:bg-red-700 text-white font-display font-black text-sm rounded-2xl transition shadow-lg flex items-center justify-center gap-2 cursor-pointer"
               id="platform-main-action-btn"
             >
-              <Plus className="w-5 h-5 text-amber-500" /> Post New Project Vacancy
+              <Plus className="w-5 h-5 text-white" /> Post New Project Vacancy
             </button>
           </div>
         </section>
@@ -623,7 +1017,7 @@ export default function App() {
         <div className="bg-white border border-zinc-200 rounded-2xl p-5 shadow-xs grid grid-cols-1 md:grid-cols-3 gap-6 items-center">
           
           {/* Base Viewer City Location Selector */}
-          <div className="space-y-1.5">
+          <div className="space-y-1.5" id="viewer-active-city-container">
             <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-zinc-400" /> Your Current Active City Center
             </label>
@@ -633,14 +1027,38 @@ export default function App() {
                 setCurrentCityName(e.target.value);
                 alert(`Viewer location center adjusted to ${e.target.value}. Computing distances for nearby listings...`);
               }}
-              className="w-full bg-zinc-50 border border-zinc-200 hover:border-zinc-300 rounded-xl px-3 py-2.5 text-xs font-semibold focus:outline-hidden cursor-pointer"
+              className="w-full bg-zinc-50 border border-zinc-200 hover:border-zinc-300 rounded-xl px-3 py-2 text-xs font-semibold focus:outline-hidden cursor-pointer"
             >
-              {CITIES.map((c) => (
-                <option key={c.zipCode} value={c.name}>
+              {allCities.map((c) => (
+                <option key={`${c.zipCode}-${c.name}`} value={c.name}>
                   📍 {c.name}, {c.state} ({c.zipCode})
                 </option>
               ))}
             </select>
+
+            {/* Custom blank search bar for any city & state input */}
+            <div className="flex gap-1.5 mt-2 pt-2 border-t border-zinc-150">
+              <input
+                type="text"
+                placeholder="Enter city, state (e.g., Dallas, TX)..."
+                value={citySearchInput}
+                onChange={(e) => setCitySearchInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    handleCustomCitySubmit();
+                  }
+                }}
+                className="flex-1 bg-zinc-50 border border-zinc-200 hover:border-zinc-350 focus:border-amber-500 rounded-xl px-3 py-1.5 text-xs focus:outline-hidden text-zinc-800"
+                id="custom-city-blank-search-bar"
+              />
+              <button
+                type="button"
+                onClick={handleCustomCitySubmit}
+                className="bg-zinc-950 hover:bg-zinc-850 text-white font-bold px-3 py-1.5 rounded-xl text-xs transition"
+              >
+                Go
+              </button>
+            </div>
           </div>
 
           {/* Haversine Miles Radius Slider */}
@@ -717,7 +1135,7 @@ export default function App() {
               ) : (
                 <div className="grid grid-cols-1 gap-6">
                   {filteredProjects.map((project) => {
-                    const projectCityData = CITIES.find((c) => c.name === project.city) || CITIES[0];
+                    const projectCityData = allCities.find((c) => c.name.toLowerCase() === project.city.toLowerCase()) || allCities[0];
                     const dist = getDistance(
                       activeCityData.lat,
                       activeCityData.lng,
@@ -738,6 +1156,13 @@ export default function App() {
                         onAcceptBid={(bidId) => handleAcceptBid(project.id, bidId)}
                         onCompleteProject={() => handleCompleteProject(project.id)}
                         onStartChat={handleStartChat}
+                        onCounterBid={handleCounterBid}
+                        onContractorAcceptCounter={handleContractorAcceptCounter}
+                        onContractorDeclineCounter={handleContractorDeclineCounter}
+                        onContractorCounter={handleContractorCounter}
+                        onViewOnMap={(projectId) => { setSelectedMapProjectId(projectId); setShowMapsDirectory(true); }}
+                        onSimulateContractorBid={handleSimulateContractorBid}
+                        onUpdateProjectImages={handleUpdateProjectImages}
                       />
                     );
                   })}
@@ -824,9 +1249,16 @@ export default function App() {
               ) : (
                 <div className="space-y-6">
                   <div className="bg-white border border-zinc-200 rounded-2xl p-6 shadow-xs relative overflow-hidden">
-                    <h2 className="text-xl font-bold font-display text-zinc-900 mb-1">
-                      Welcome Back, {currentUser.fullName}!
-                    </h2>
+                    <div className="flex items-center gap-2.5 flex-wrap mb-1">
+                      <h2 className="text-xl font-bold font-display text-zinc-900">
+                        Welcome Back, {currentUser.fullName}!
+                      </h2>
+                      {(currentUser.sharedWithFriend || currentUser.id === "cust-1" || currentUser.id === "cont-1") && (
+                        <span className="inline-flex items-center gap-1 bg-gradient-to-r from-amber-500 to-amber-600 text-white text-[11px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-full shadow-3xs border border-amber-400/30" title="Top Connector Badge: Earned by referring friends and expanding our trade network!">
+                          🌟 Top Connector
+                        </span>
+                      )}
+                    </div>
                     <p className="text-zinc-505 text-xs">
                       Logged in as a <span className="font-bold text-amber-700 uppercase tracking-wider">{currentUser.role === "customer" ? "Homeowner Customer" : "Professional Contractor"}</span>
                     </p>
@@ -881,6 +1313,54 @@ export default function App() {
                         </button>
                       </div>
                     )}
+
+                    {currentUser.role === "customer" && (
+                      <div className="mt-5 pt-4 border-t border-zinc-150 flex items-center justify-between gap-4 flex-wrap bg-amber-50/20 p-4 rounded-xl border border-amber-100/75" id="customer-dashboard-notifications-banner">
+                        <div className="space-y-0.5">
+                          <span className="text-xs font-bold text-zinc-800 flex items-center gap-1.5">
+                            🔔 Real-Time Push Alerts: 
+                            {currentUser.pushNotificationsEnabled !== false ? (
+                              <span className="inline-flex items-center gap-1 text-[10px] bg-emerald-100 text-emerald-800 font-bold px-2.5 py-0.5 rounded-full border border-emerald-250">
+                                Active & Enabled
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[10px] bg-zinc-100 text-zinc-500 font-medium px-2.5 py-0.5 rounded-full border border-zinc-250">
+                                Muted / Disabled
+                              </span>
+                            )}
+                          </span>
+                          <p className="text-[10px] text-zinc-500">
+                            Receive real-time floating push banners and high-fidelity chimes when contractors place new bids on your active workspace requests.
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const isCurrentlyEnabled = currentUser.pushNotificationsEnabled !== false;
+                            const updated = { ...currentUser, pushNotificationsEnabled: !isCurrentlyEnabled };
+                            setCurrentUser(updated);
+                            
+                            if (!isCurrentlyEnabled && "Notification" in window) {
+                              Notification.requestPermission().then((perm) => {
+                                if (perm === "granted") {
+                                  alert("🔔 Browser-level notifications enabled! You will now receive alerts.");
+                                } else {
+                                  alert("🔔 Notifications enabled! (In-app sliding push-banners will show, browser native is blocked.)");
+                                }
+                              });
+                            } else {
+                              alert(`Real-time push alerts turned ${!isCurrentlyEnabled ? "ON" : "OFF"}.`);
+                            }
+                          }}
+                          className={`text-xs font-bold px-4 py-2 rounded-xl border transition shadow-xs cursor-pointer ${
+                            currentUser.pushNotificationsEnabled !== false
+                              ? "bg-zinc-100 text-zinc-750 hover:bg-zinc-200 border-zinc-300"
+                              : "bg-amber-600 text-white hover:bg-amber-700 border-amber-600"
+                          }`}
+                        >
+                          {currentUser.pushNotificationsEnabled !== false ? "Mute Push Alerts" : "Enable Push Alerts"}
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   {/* PLATFORM LAUNCH SPECIAL REFERRAL WIDGET */}
@@ -926,6 +1406,54 @@ export default function App() {
                     </div>
                   </div>
 
+                  {/* Top Connector Leaderboard Widget */}
+                  <div className="bg-white border border-zinc-200 rounded-2xl p-5 shadow-xs space-y-4" id="top-connector-leaderboard">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-150 pb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-base">🏆</span>
+                        <div>
+                          <h3 className="font-display font-bold text-sm text-zinc-900 uppercase tracking-wider">Top Connectors Leaderboard</h3>
+                          <p className="text-[11px] text-zinc-500">Top 5 community members who referred the most friends to the platform</p>
+                        </div>
+                      </div>
+                      <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-2.5 py-1 rounded-full uppercase tracking-wider self-start sm:self-center">
+                        🌟 Badge Reward Active
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                      {[
+                        { rank: 1, name: "Marcus Vance", role: "Contractor", referrals: 18, isCurrentUser: false },
+                        { rank: 2, name: "Elena Rostova", role: "Homeowner", referrals: 14, isCurrentUser: false },
+                        { rank: 3, name: currentUser.fullName, role: currentUser.role === "customer" ? "Homeowner" : "Contractor", referrals: currentUser.sharedWithFriend ? 12 : 9, isCurrentUser: true },
+                        { rank: 4, name: "Dave 'The Wrench' Miller", role: "Contractor", referrals: 8, isCurrentUser: false },
+                        { rank: 5, name: "Sarah Jenkins", role: "Homeowner", referrals: 6, isCurrentUser: false },
+                      ].sort((a, b) => b.referrals - a.referrals).map((user, idx) => (
+                        <div key={user.name} className={`p-3 rounded-xl border flex flex-col justify-between gap-2 transition ${user.isCurrentUser ? "bg-amber-50/60 border-amber-300 ring-1 ring-amber-400/50" : "bg-zinc-50/50 border-zinc-200 hover:border-zinc-300"}`}>
+                          <div className="flex items-start justify-between gap-1">
+                            <span className={`text-xs font-black px-2 py-0.5 rounded-md ${idx === 0 ? "bg-amber-500 text-white shadow-3xs" : idx === 1 ? "bg-zinc-300 text-zinc-800" : idx === 2 ? "bg-amber-700/80 text-white" : "bg-zinc-200 text-zinc-700"}`}>
+                              #{idx + 1}
+                            </span>
+                            <span className="inline-flex items-center gap-0.5 bg-gradient-to-r from-amber-500 to-amber-600 text-white text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full shadow-3xs" title="Top Connector Badge">
+                              🌟 Top Connector
+                            </span>
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-zinc-900 truncate flex items-center gap-1">
+                              {user.name}
+                              {user.isCurrentUser && <span className="text-[9px] bg-amber-200 text-amber-900 px-1 py-0.5 rounded font-bold">YOU</span>}
+                            </p>
+                            <p className="text-[10px] text-zinc-500">{user.role}</p>
+                          </div>
+                          <div className="pt-2 border-t border-zinc-200/60 flex items-center justify-between text-[11px] font-bold text-zinc-700">
+                            <span>Referrals:</span>
+                            <span className="text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md font-mono">{user.referrals}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
                   {/* Summary Stats Widget */}
                   <DashboardStats currentUser={currentUser} projects={projects} bids={bids} />
 
@@ -951,6 +1479,13 @@ export default function App() {
                                 onAcceptBid={(bidId) => handleAcceptBid(project.id, bidId)}
                                 onCompleteProject={() => handleCompleteProject(project.id)}
                                 onStartChat={handleStartChat}
+                                onCounterBid={handleCounterBid}
+                                onContractorAcceptCounter={handleContractorAcceptCounter}
+                                onContractorDeclineCounter={handleContractorDeclineCounter}
+                                onContractorCounter={handleCounterBid}
+                                onViewOnMap={(projectId) => { setSelectedMapProjectId(projectId); setShowMapsDirectory(true); }}
+                                onSimulateContractorBid={handleSimulateContractorBid}
+                                onUpdateProjectImages={handleUpdateProjectImages}
                               />
                             ))}
                         </div>
@@ -979,6 +1514,12 @@ export default function App() {
                                 onAgreeToProject={() => handleAgreeToProject(project.id)}
                                 onCompleteProject={() => handleCompleteProject(project.id)}
                                 onStartChat={handleStartChat}
+                                onCounterBid={handleCounterBid}
+                                onContractorAcceptCounter={handleContractorAcceptCounter}
+                                onContractorDeclineCounter={handleContractorDeclineCounter}
+                                onContractorCounter={handleContractorCounter}
+                                onViewOnMap={(projectId) => { setSelectedMapProjectId(projectId); setShowMapsDirectory(true); }}
+                                onUpdateProjectImages={handleUpdateProjectImages}
                               />
                             ))}
                         </div>
@@ -994,6 +1535,36 @@ export default function App() {
             <StripeHub
               currentUser={currentUser}
               onAlert={(msg) => alert(msg)}
+              projects={projects}
+              bids={bids}
+              onAddEmailLog={(email, name, subject, body) => {
+                setEmailLogs((prev) => [
+                  {
+                    id: `email-${Math.random().toString(36).substring(2, 11)}`,
+                    recipientEmail: email,
+                    recipientName: name,
+                    subject,
+                    body,
+                    timestamp: new Date().toISOString(),
+                  },
+                  ...prev,
+                ]);
+              }}
+            />
+          )}
+
+          {activeTab === "outreach" && (
+            <OutreachCampaignsHub
+              currentUser={currentUser}
+              onAlert={(msg) => alert(msg)}
+              seniorMode={seniorMode}
+              setSeniorMode={setSeniorMode}
+            />
+          )}
+
+          {activeTab === "ai_agent" && (
+            <AutonomousAdInstallerAgent
+              appUrl={window.location.origin}
             />
           )}
         </section>
@@ -1003,13 +1574,13 @@ export default function App() {
       <button
         type="button"
         onClick={() => setIsChatOpen(!isChatOpen)}
-        className="fixed bottom-6 right-72 bg-zinc-900 border border-zinc-700 hover:border-zinc-650 rounded-full p-4 shadow-2xl transition duration-200 select-none flex items-center gap-2 font-semibold text-white z-40 active:scale-95"
+        className="fixed bottom-6 right-72 bg-[#0c2340] border border-blue-900 hover:bg-[#112d50] rounded-full p-4 shadow-2xl transition duration-200 select-none flex items-center gap-2 font-semibold text-white z-40 active:scale-95 cursor-pointer"
         id="chat-trigger-float-btn"
       >
-        <MessageSquare className="w-5 h-5 text-amber-500 shrink-0" />
+        <MessageSquare className="w-5 h-5 text-red-500 shrink-0" />
         <span className="text-xs font-bold text-white tracking-tight">Private Chat ({privateMessages.length})</span>
         {privateMessages.length > 0 && (
-          <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0 animate-pulse" />
+          <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0 animate-pulse" />
         )}
       </button>
 
@@ -1028,12 +1599,12 @@ export default function App() {
       {/* Persistent Floating SMTP Email logs simulator bubble */}
       <button
         onClick={() => setShowEmailTracker(!showEmailTracker)}
-        className="fixed bottom-6 right-6 bg-slate-900 hover:bg-slate-800 text-amber-500 hover:text-amber-400 border border-slate-700 rounded-full p-4 shadow-2xl transition duration-200 select-none flex items-center gap-2 font-mono z-40 active:scale-95"
+        className="fixed bottom-6 right-6 bg-red-600 hover:bg-red-700 text-white border border-red-700 rounded-full p-4 shadow-2xl transition duration-200 select-none flex items-center gap-2 font-mono z-40 active:scale-95 cursor-pointer"
         id="email-trigger-float-btn"
       >
-        <Mail className="w-5 h-5 text-amber-500 shrink-0" />
+        <Mail className="w-5 h-5 text-white shrink-0" />
         <span className="text-xs font-bold text-white tracking-tight">Tech Relay logs ({emailLogs.length})</span>
-        <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0 animate-ping" />
+        <span className="w-2.5 h-2.5 rounded-full bg-blue-200 shrink-0 animate-ping" />
       </button>
 
       {/* --- Overlay Modals routers --- */}
@@ -1041,6 +1612,7 @@ export default function App() {
         <ProjectForm
           onAddProject={handleAddProject}
           onClose={() => setShowProjectModal(false)}
+          currentUser={currentUser}
         />
       )}
 
@@ -1071,6 +1643,71 @@ export default function App() {
           }}
           onClose={() => setShowEmailTracker(false)}
         />
+      )}
+
+      {showMapsDirectory && (
+        <GoogleMapsDirectory
+          projects={projects}
+          bids={bids}
+          allCities={allCities}
+          onClose={() => {
+            setShowMapsDirectory(false);
+            setSelectedMapProjectId(null);
+          }}
+          onSelectProject={(projectId) => {
+            // Auto switch tab to projects to see the board
+            setActiveTab("projects");
+            
+            // Scroll to the project card on the homepage
+            setTimeout(() => {
+              const element = document.getElementById(`project-card-${projectId}`);
+              if (element) {
+                element.scrollIntoView({ behavior: "smooth", block: "center" });
+                element.classList.add("ring-4", "ring-amber-500", "transition-all", "duration-1000");
+                setTimeout(() => {
+                  element.classList.remove("ring-4", "ring-amber-500");
+                }, 3000);
+              }
+            }, 350);
+          }}
+        />
+      )}
+
+      {/* Sliding-down Real-time Web Push notification banner */}
+      {activePushNotification && (
+        <div
+          className="fixed top-6 right-6 left-6 md:left-auto md:w-96 bg-zinc-900 border border-zinc-700/80 rounded-2xl p-4 shadow-2xl z-50 animate-in slide-in-from-top-4 duration-300 flex items-start gap-3.5 select-none"
+          id="push-alert-notification-banner"
+        >
+          <div className="w-10 h-10 rounded-full bg-amber-500/15 flex items-center justify-center shrink-0 border border-amber-500/30">
+            <span className="text-lg">🔔</span>
+          </div>
+          <div className="flex-1 space-y-1">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-black font-display text-amber-500 tracking-wide uppercase">Real-Time Push Alert</h4>
+              <button
+                onClick={() => setActivePushNotification(null)}
+                className="text-zinc-400 hover:text-white text-xs font-bold leading-none cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            <h5 className="text-xs font-bold text-white font-display leading-tight">{activePushNotification.title}</h5>
+            <p className="text-[11px] text-zinc-300 leading-normal">{activePushNotification.body}</p>
+            <div className="flex justify-between items-center pt-1">
+              <span className="text-[9px] text-zinc-500 font-semibold font-mono">Push Protocol: Active</span>
+              <button
+                onClick={() => {
+                  setActiveTab("my_dashboard");
+                  setActivePushNotification(null);
+                }}
+                className="text-[10px] text-amber-400 hover:text-amber-300 font-bold hover:underline cursor-pointer"
+              >
+                Open Dashboard →
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

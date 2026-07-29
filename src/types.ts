@@ -17,6 +17,7 @@ export interface BaseUser {
   };
   role: UserRole;
   createdAt: string;
+  pushNotificationsEnabled?: boolean;
 }
 
 export interface CustomerUser extends BaseUser {
@@ -69,6 +70,14 @@ export interface Project {
   serviceFeeCharge: number; // calculated service fee ($5 or $20)
 }
 
+export interface NegotiationStep {
+  id: string;
+  senderRole: "customer" | "contractor";
+  amount: number;
+  message: string;
+  createdAt: string;
+}
+
 export interface Bid {
   id: string;
   projectId: string;
@@ -77,8 +86,9 @@ export interface Bid {
   contractorCompany?: string;
   amount: number;
   message: string;
-  status: "pending" | "accepted" | "declined";
+  status: "pending" | "counter_by_customer" | "counter_by_contractor" | "accepted" | "declined";
   createdAt: string;
+  history?: NegotiationStep[];
 }
 
 export interface Coordinate {

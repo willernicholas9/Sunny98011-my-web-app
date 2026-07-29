@@ -6,6 +6,7 @@ import { CITIES } from "../data/cities";
 interface ProjectFormProps {
   onAddProject: (projectData: Omit<Project, "id" | "customerId" | "customerFirstName" | "customerLastName" | "customerPhone" | "customerAddress" | "customerEmail" | "createdAt" | "status" | "agreedByCustomer" | "agreedByContractor" | "serviceFeeCharge">) => void;
   onClose: () => void;
+  currentUser?: any | null;
 }
 
 // Preset decorative icons/illustrations so that mock listings look beautiful
@@ -16,7 +17,7 @@ const IMAGE_PRESETS = [
   { name: "Windows / Glazing", url: "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop&q=80" },
 ];
 
-export default function ProjectForm({ onAddProject, onClose }: ProjectFormProps) {
+export default function ProjectForm({ onAddProject, onClose, currentUser }: ProjectFormProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState("");
@@ -25,11 +26,51 @@ export default function ProjectForm({ onAddProject, onClose }: ProjectFormProps)
   const [zipCode, setZipCode] = useState("");
   const [city, setCity] = useState("Austin");
   const [state, setState] = useState("TX");
+  const [autoFillFromProfile, setAutoFillFromProfile] = useState(false);
   
   // Pictures control
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [dragActive, setDragActive] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAutoFillToggle = (checked: boolean) => {
+    setAutoFillFromProfile(checked);
+    if (checked && currentUser) {
+      if (currentUser.address) setAddress(currentUser.address);
+      if (currentUser.zipCode) setZipCode(currentUser.zipCode);
+      if (currentUser.city) {
+        const foundCity = CITIES.find(
+          (c) =>
+            c.name.toLowerCase() === currentUser.city.toLowerCase() ||
+            c.zipCode === currentUser.zipCode
+        );
+        if (foundCity) {
+          setCity(foundCity.name);
+          setState(foundCity.state);
+          if (!currentUser.zipCode) setZipCode(foundCity.zipCode);
+        } else {
+          setCity(currentUser.city);
+          if (currentUser.state) setState(currentUser.state);
+        }
+      } else if (currentUser.zipCode) {
+        const foundCity = CITIES.find((c) => c.zipCode === currentUser.zipCode);
+        if (foundCity) {
+          setCity(foundCity.name);
+          setState(foundCity.state);
+        }
+      }
+    } else if (!checked) {
+      setAddress("");
+      setZipCode("");
+    }
+  };
+
+  const handleAddressChange = (val: string) => {
+    setAddress(val);
+    if (autoFillFromProfile && currentUser && val !== currentUser.address) {
+      setAutoFillFromProfile(false);
+    }
+  };
 
   // Address and city synchronization helper
   const handleZipChange = (zip: string) => {
@@ -39,6 +80,9 @@ export default function ProjectForm({ onAddProject, onClose }: ProjectFormProps)
       setCity(foundCity.name);
       setState(foundCity.state);
     }
+    if (autoFillFromProfile && currentUser && zip !== currentUser.zipCode) {
+      setAutoFillFromProfile(false);
+    }
   };
 
   const handleCitySelect = (cityName: string) => {
@@ -47,6 +91,14 @@ export default function ProjectForm({ onAddProject, onClose }: ProjectFormProps)
       setCity(foundCity.name);
       setState(foundCity.state);
       setZipCode(foundCity.zipCode);
+      if (autoFillFromProfile && currentUser && foundCity.name !== currentUser.city) {
+        setAutoFillFromProfile(false);
+      }
+    } else {
+      setCity(cityName);
+      if (autoFillFromProfile && currentUser && cityName !== currentUser.city) {
+        setAutoFillFromProfile(false);
+      }
     }
   };
 
@@ -173,43 +225,93 @@ export default function ProjectForm({ onAddProject, onClose }: ProjectFormProps)
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Property Scope</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setType("home")}
-                  className={`py-2 px-3 text-xs font-semibold rounded-xl border text-center transition ${
-                    type === "home"
-                      ? "border-amber-600 bg-amber-50/50 text-amber-900"
-                      : "border-zinc-200 hover:bg-zinc-50 text-zinc-600"
-                  }`}
-                  id="form-type-home"
-                >
-                  🏡 Home Property
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setType("business")}
-                  className={`py-2 px-3 text-xs font-semibold rounded-xl border text-center transition ${
-                    type === "business"
-                      ? "border-cyan-600 bg-cyan-50/50 text-cyan-900"
-                      : "border-zinc-200 hover:bg-zinc-50 text-zinc-600"
-                  }`}
-                  id="form-type-business"
-                >
-                  🏢 Business Property
-                </button>
+          <div>
+            <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Property Scope</label>
+            <div className="grid grid-cols-2 gap-3 max-w-md">
+              <button
+                type="button"
+                onClick={() => setType("home")}
+                className={`py-2.5 px-4 text-xs font-semibold rounded-xl border text-center transition ${
+                  type === "home"
+                    ? "border-amber-600 bg-amber-50/70 text-amber-900 shadow-3xs font-bold"
+                    : "border-zinc-200 hover:bg-zinc-50 text-zinc-600"
+                }`}
+                id="form-type-home"
+              >
+                🏡 Home Property
+              </button>
+              <button
+                type="button"
+                onClick={() => setType("business")}
+                className={`py-2.5 px-4 text-xs font-semibold rounded-xl border text-center transition ${
+                  type === "business"
+                    ? "border-cyan-600 bg-cyan-50/70 text-cyan-900 shadow-3xs font-bold"
+                    : "border-zinc-200 hover:bg-zinc-50 text-zinc-600"
+                }`}
+                id="form-type-business"
+              >
+                🏢 Business Property
+              </button>
+            </div>
+          </div>
+
+          {/* Location & Address Section with Auto-Fill Option */}
+          <div className="bg-zinc-50/60 border border-zinc-200/80 rounded-2xl p-4 space-y-4" id="project-location-section">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-200/80 pb-3">
+              <div className="flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 text-amber-600" />
+                <span className="text-xs font-bold font-display text-zinc-800 uppercase tracking-wider">
+                  Location & Address
+                </span>
+              </div>
+              {currentUser && (
+                <label className="flex items-center gap-2 text-xs font-bold text-zinc-700 bg-white border border-zinc-200 px-3 py-1.5 rounded-xl shadow-3xs cursor-pointer hover:bg-amber-50/50 hover:border-amber-300 transition select-none">
+                  <input
+                    type="checkbox"
+                    checked={autoFillFromProfile}
+                    onChange={(e) => handleAutoFillToggle(e.target.checked)}
+                    className="w-4 h-4 rounded-md border-zinc-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                    id="auto-fill-profile-checkbox"
+                    data-testid="auto-fill-profile-checkbox"
+                  />
+                  <span>Auto-fill from Profile</span>
+                </label>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Street Address (Hidden from Public)</label>
+                <input
+                  type="text"
+                  placeholder="e.g. 512 Whispering Pines Dr."
+                  value={address}
+                  onChange={(e) => handleAddressChange(e.target.value)}
+                  required
+                  className="w-full bg-white border border-zinc-300 rounded-xl px-3 py-2.5 text-sm focus:ring-1 focus:ring-amber-500 focus:outline-hidden transition"
+                  id="form-project-address"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Zip Code</label>
+                <input
+                  type="text"
+                  placeholder="78664"
+                  value={zipCode}
+                  onChange={(e) => handleZipChange(e.target.value)}
+                  required
+                  className="w-full bg-white border border-zinc-300 rounded-xl px-3 py-2.5 text-sm focus:ring-1 focus:ring-amber-500 focus:outline-hidden transition"
+                  id="form-project-zip"
+                />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Project Specific Location</label>
+              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Project Specific Location (City/State)</label>
               <select
                 value={city}
                 onChange={(e) => handleCitySelect(e.target.value)}
-                className="w-full bg-zinc-50/50 border border-zinc-300 rounded-xl px-3 py-2.5 text-sm focus:ring-1 focus:ring-amber-500 focus:bg-white focus:outline-hidden transition"
+                className="w-full bg-white border border-zinc-300 rounded-xl px-3 py-2.5 text-sm focus:ring-1 focus:ring-amber-500 focus:outline-hidden transition"
                 id="form-project-city"
               >
                 {CITIES.map((c) => (
@@ -217,34 +319,12 @@ export default function ProjectForm({ onAddProject, onClose }: ProjectFormProps)
                     {c.name}, {c.state} ({c.zipCode})
                   </option>
                 ))}
+                {!CITIES.some((c) => c.name.toLowerCase() === city.toLowerCase()) && (
+                  <option value={city}>
+                    {city}, {state} ({zipCode})
+                  </option>
+                )}
               </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Street Address (Hidden from Public)</label>
-              <input
-                type="text"
-                placeholder="e.g. 512 Whispering Pines Dr."
-                value={address}
-                onChange={(e) => setAddress(e.target.value)}
-                required
-                className="w-full bg-zinc-50/50 border border-zinc-300 rounded-xl px-3 py-2.5 text-sm focus:ring-1 focus:ring-amber-500 focus:bg-white focus:outline-hidden transition"
-                id="form-project-address"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Zip Code</label>
-              <input
-                type="text"
-                placeholder="78664"
-                value={zipCode}
-                onChange={(e) => handleZipChange(e.target.value)}
-                required
-                className="w-full bg-zinc-50/50 border border-zinc-300 rounded-xl px-3 py-2.5 text-sm focus:ring-1 focus:ring-amber-500 focus:bg-white focus:outline-hidden transition"
-                id="form-project-zip"
-              />
             </div>
           </div>
 

@@ -1,12 +1,12 @@
 import React from "react";
-import { Hammer, CircleAlert, Mail, LogOut, LogIn, HardHat } from "lucide-react";
+import { Hammer, CircleAlert, Mail, LogOut, LogIn, HardHat, Bot } from "lucide-react";
 
 interface NavbarProps {
   currentUser: any;
   onTriggerLogin: () => void;
   onLogout: () => void;
-  activeTab: "projects" | "contractors" | "my_dashboard" | "stripe_hub";
-  onChangeTab: (tab: "projects" | "contractors" | "my_dashboard" | "stripe_hub") => void;
+  activeTab: "projects" | "contractors" | "my_dashboard" | "stripe_hub" | "outreach" | "ai_agent";
+  onChangeTab: (tab: "projects" | "contractors" | "my_dashboard" | "stripe_hub" | "outreach" | "ai_agent") => void;
   onToggleEmailLog: () => void;
   emailCount: number;
 }
@@ -74,6 +74,30 @@ export default function Navbar({
               id="nav-tab-dashboard"
             >
               🛠️ My Dashboard Console
+            </button>
+            <button
+              onClick={() => onChangeTab("outreach")}
+              className={`px-4 py-2 text-xs font-bold rounded-xl transition duration-150 ${
+                activeTab === "outreach"
+                  ? "bg-amber-100 text-amber-900 shadow-3xs"
+                  : "text-zinc-650 hover:bg-zinc-50 hover:text-zinc-900"
+              }`}
+              id="nav-tab-outreach"
+            >
+              📣 Outreach & Campaigns
+            </button>
+            <button
+              onClick={() => onChangeTab("ai_agent")}
+              className={`px-4 py-2 text-xs font-bold rounded-xl transition duration-150 flex items-center gap-1.5 ${
+                activeTab === "ai_agent"
+                  ? "bg-red-600 text-white shadow-md animate-pulse"
+                  : "bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
+              }`}
+              id="nav-tab-ai-agent"
+              title="Autonomous AI Advertising & System Installer Agent"
+            >
+              <Bot className="w-4 h-4 text-red-600 group-hover:animate-bounce inline" />
+              <span>🤖 AI Ad & Install Agent</span>
             </button>
           </nav>
 
@@ -163,6 +187,22 @@ export default function Navbar({
             }`}
           >
             🛠️ Dashboard
+          </button>
+          <button
+            onClick={() => onChangeTab("outreach")}
+            className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition ${
+              activeTab === "outreach" ? "bg-amber-100 text-amber-900" : "text-zinc-600"
+            }`}
+          >
+            📣 Outreach
+          </button>
+          <button
+            onClick={() => onChangeTab("ai_agent")}
+            className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition flex items-center gap-1 ${
+              activeTab === "ai_agent" ? "bg-red-600 text-white" : "bg-red-50 text-red-700 border border-red-200"
+            }`}
+          >
+            <span>🤖 AI Ad Agent</span>
           </button>
         </div>
 

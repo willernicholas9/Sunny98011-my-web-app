@@ -14,15 +14,31 @@ import {
   DollarSign,
   AlertCircle,
   ExternalLink,
-  Activity
+  Activity,
+  FileText,
+  Plus,
+  Trash2,
+  Printer,
+  Download,
+  Send,
+  Sparkles
 } from "lucide-react";
 
 interface StripeHubProps {
   currentUser: any;
   onAlert: (msg: string) => void;
+  projects?: any[];
+  bids?: any[];
+  onAddEmailLog?: (recipientEmail: string, recipientName: string, subject: string, body: string) => void;
 }
 
-export default function StripeHub({ currentUser, onAlert }: StripeHubProps) {
+export default function StripeHub({ 
+  currentUser, 
+  onAlert,
+  projects = [],
+  bids = [],
+  onAddEmailLog
+}: StripeHubProps) {
   const [loading, setLoading] = useState(false);
   const [balanceData, setBalanceData] = useState<{
     realMode: boolean;
@@ -48,6 +64,217 @@ export default function StripeHub({ currentUser, onAlert }: StripeHubProps) {
   const [routingNumber, setRoutingNumber] = useState("021000021");
   const [accountNumber, setAccountNumber] = useState("1234567890");
   const [stripeStatusInfo, setStripeStatusInfo] = useState<{ configured: boolean; publishableKey: string } | null>(null);
+
+  // --- INVOICE GENERATOR STATES & SYSTEM ---
+  const SIMULATED_COMPLETED_PROJECTS = [
+    {
+      id: "demo-completed-1",
+      title: "Backyard Landscape Restoration & Paver Stones",
+      budget: 850,
+      customerFirstName: "Arthur",
+      customerLastName: "Pendleton",
+      customerEmail: "arthur.pendleton@example.com",
+      customerPhone: "503-555-0182",
+      address: "1894 NW Skyline Drive",
+      city: "Portland",
+      state: "OR",
+      zipCode: "97229",
+      serviceFeeCharge: 20,
+    },
+    {
+      id: "demo-completed-2",
+      title: "Gutter Guard Installation & Roof Leak Repair",
+      budget: 320,
+      customerFirstName: "Eleanor",
+      customerLastName: "Vance",
+      customerEmail: "eleanor.vance@example.com",
+      customerPhone: "206-555-0199",
+      address: "4722 Pine Street",
+      city: "Seattle",
+      state: "WA",
+      zipCode: "98101",
+      serviceFeeCharge: 5,
+    }
+  ];
+
+  // Filter completed projects from live database
+  const completedProjects = projects.filter((p: any) => p.status === "completed");
+
+  const selectableProjects = [
+    ...completedProjects,
+    ...SIMULATED_COMPLETED_PROJECTS
+  ];
+
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(
+    selectableProjects[0]?.id || ""
+  );
+  const [invoiceNumber, setInvoiceNumber] = useState<string>(
+    `INV-2026-${Math.floor(1000 + Math.random() * 9000)}`
+  );
+  const [issueDate, setIssueDate] = useState<string>(
+    new Date().toISOString().split("T")[0]
+  );
+  const [dueDate, setDueDate] = useState<string>(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + 14);
+    return d.toISOString().split("T")[0];
+  });
+
+  interface InvoiceLineItem {
+    id: string;
+    description: string;
+    qty: number;
+    unitPrice: number;
+  }
+
+  const [lineItems, setLineItems] = useState<InvoiceLineItem[]>([]);
+  const [taxRate, setTaxRate] = useState<number>(8.25);
+  const [notes, setNotes] = useState<string>(
+    "Thank you for choosing Hot Spot Workspace! We appreciate your business and escrow authorization."
+  );
+  const [contractorBusinessName, setContractorBusinessName] = useState<string>("");
+  const [contractorEmail, setContractorEmail] = useState<string>("");
+
+  useEffect(() => {
+    if (!selectedProjectId) return;
+    const proj = selectableProjects.find((p) => p.id === selectedProjectId);
+    if (proj) {
+      // Create itemized default lines: 70% labor, 20% materials, 10% clean up
+      const laborCost = Math.round(proj.budget * 0.70);
+      const materialsCost = Math.round(proj.budget * 0.20);
+      const safetyCost = proj.budget - laborCost - materialsCost;
+
+      const defaultLines: InvoiceLineItem[] = [
+        {
+          id: "line-labor",
+          description: `Contracted Labor Services for ${proj.title}`,
+          qty: 1,
+          unitPrice: laborCost
+        }
+      ];
+
+      if (materialsCost > 0) {
+        defaultLines.push({
+          id: "line-materials",
+          description: "Required Project Materials, Tools & Disposal Costs",
+          qty: 1,
+          unitPrice: materialsCost
+        });
+      }
+
+      if (safetyCost > 0) {
+        defaultLines.push({
+          id: "line-cleanup",
+          description: "Post-Job Safety Clean-up & Visual Site Audit",
+          qty: 1,
+          unitPrice: safetyCost
+        });
+      }
+
+      setLineItems(defaultLines);
+
+      if (currentUser?.role === "contractor") {
+        setContractorBusinessName(currentUser.company || currentUser.fullName || "Certified Contractor Services");
+        setContractorEmail(currentUser.email || "billing@workspacecontractor.com");
+      } else {
+        setContractorBusinessName("Apex Remodeling & Handyman Inc.");
+        setContractorEmail("accounts@apexremodeling.com");
+      }
+    }
+  }, [selectedProjectId]);
+
+  const handleAddLineItem = () => {
+    const newLine: InvoiceLineItem = {
+      id: `line-${Date.now()}`,
+      description: "Additional Itemized Service",
+      qty: 1,
+      unitPrice: 50
+    };
+    setLineItems([...lineItems, newLine]);
+  };
+
+  const handleRemoveLineItem = (id: string) => {
+    if (lineItems.length <= 1) {
+      onAlert("An invoice must contain at least one line item!");
+      return;
+    }
+    setLineItems(lineItems.filter(item => item.id !== id));
+  };
+
+  const handleUpdateLineItem = (id: string, field: "description" | "qty" | "unitPrice", value: any) => {
+    setLineItems(lineItems.map(item => {
+      if (item.id === id) {
+        if (field === "description") {
+          return { ...item, description: value };
+        } else {
+          return { ...item, [field]: Number(value) || 0 };
+        }
+      }
+      return item;
+    }));
+  };
+
+  const subtotal = lineItems.reduce((acc, item) => acc + (item.qty * item.unitPrice), 0);
+  const taxAmount = (subtotal * taxRate) / 100;
+  const totalAmount = subtotal + taxAmount;
+
+  const handleDownloadCSV = () => {
+    const proj = selectableProjects.find(p => p.id === selectedProjectId);
+    if (!proj) return;
+    
+    let csvContent = "data:text/csv;charset=utf-8,";
+    csvContent += `INVOICE RECEIPT\n`;
+    csvContent += `Invoice ID,${invoiceNumber}\n`;
+    csvContent += `Issue Date,${issueDate}\n`;
+    csvContent += `Due Date,${dueDate}\n\n`;
+    csvContent += `CONTRACTOR,${contractorBusinessName}\n`;
+    csvContent += `Contractor Email,${contractorEmail}\n\n`;
+    csvContent += `CLIENT,${proj.customerFirstName} ${proj.customerLastName}\n`;
+    csvContent += `Client Email,${proj.customerEmail || "N/A"}\n`;
+    csvContent += `Client Phone,${proj.customerPhone || "N/A"}\n\n`;
+    
+    csvContent += `Itemized Details\n`;
+    csvContent += `Description,Qty,Unit Price (USD),Total (USD)\n`;
+    lineItems.forEach(item => {
+      csvContent += `"${item.description.replace(/"/g, '""')}",${item.qty},${item.unitPrice},${(item.qty * item.unitPrice).toFixed(2)}\n`;
+    });
+    
+    csvContent += `\n`;
+    csvContent += `,Subtotal,${subtotal.toFixed(2)}\n`;
+    csvContent += `,Tax (${taxRate}%),${taxAmount.toFixed(2)}\n`;
+    csvContent += `,Grand Total,${totalAmount.toFixed(2)}\n`;
+    
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `invoice-${invoiceNumber}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    onAlert(`CSV invoice downloaded successfully for ${invoiceNumber}!`);
+  };
+
+  const handleSendEmail = () => {
+    const proj = selectableProjects.find(p => p.id === selectedProjectId);
+    if (!proj) return;
+    if (!onAddEmailLog) {
+      onAlert("Email simulator logs are unavailable. Please check configuration.");
+      return;
+    }
+    
+    const clientName = `${proj.customerFirstName} ${proj.customerLastName}`;
+    const clientEmail = proj.customerEmail || `${proj.customerFirstName.toLowerCase()}@example.com`;
+    
+    const itemizedText = lineItems.map((item, idx) => {
+      return `${idx + 1}. ${item.description}\n   Qty: ${item.qty} | Rate: $${item.unitPrice.toFixed(2)} | Subtotal: $${(item.qty * item.unitPrice).toFixed(2)}`;
+    }).join("\n");
+    
+    const emailSubject = `🧾 Itemized Invoice ${invoiceNumber} from ${contractorBusinessName} [Project: ${proj.title}]`;
+    const emailBody = `Hi ${clientName},\n\nWe have generated an itemized invoice for your records regarding the completed project: "${proj.title}".\n\nYour agreed budget was $${proj.budget.toFixed(2)}. Below is the detailed breakdown of the services rendered, materials allocated, and municipal tax itemizations:\n\n========================================\nINVOICE BREAKDOWN\n========================================\nInvoice Number: ${invoiceNumber}\nIssue Date: ${issueDate}\nDue Date: ${dueDate}\nContractor: ${contractorBusinessName} (${contractorEmail})\n\nSERVICES ITEMIZATION:\n${itemizedText}\n\n----------------------------------------\nFINANCIAL METRICS:\nSubtotal Amount: $${subtotal.toFixed(2)}\nEstimated Sales Tax (${taxRate}%): $${taxAmount.toFixed(2)}\nGrand Total (Escrow Cleared): $${totalAmount.toFixed(2)}\n----------------------------------------\n\nNotes: ${notes}\n\n========================================\nSTATUS: AUTOMATICALLY CLEARING ESCROW DEPOSIT WITH STRIPE\n========================================\n\nThis invoice is provided as an itemized copy for your personal records and business tax filing purposes. No additional payment action is required if your escrow has already cleared successfully!\n\nBest regards,\nHot Spot Workspace Automations`;
+
+    onAddEmailLog(clientEmail, clientName, emailSubject, emailBody);
+    onAlert(`📧 Success! Itemized invoice sent. You can check the "Platform Email Log Simulator" at the top right to view the live SMTP transmission log!`);
+  };
 
   // Fetch balance data from full-stack endpoint
   const fetchBalance = async () => {
@@ -439,7 +666,419 @@ export default function StripeHub({ currentUser, onAlert }: StripeHubProps) {
         </div>
       )}
 
-      {/* TIMING CONFIG & TRANSAC RECORD TIMELINE SHEET */}
+      {/* ======================================================== */}
+      {/*             SMART ITEMIZED INVOICE GENERATOR            */}
+      {/* ======================================================== */}
+      <div className="bg-white border border-zinc-200 rounded-2xl p-6 shadow-xs space-y-6" id="smart-invoice-generator">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-100 pb-4">
+          <div className="space-y-1">
+            <h3 className="text-base font-black text-zinc-900 flex items-center gap-2 font-display">
+              <FileText className="w-5 h-5 text-amber-500 shrink-0" />
+              Smart Itemized Invoice Generator
+            </h3>
+            <p className="text-zinc-500 text-xs leading-relaxed">
+              Review completed projects and generate detailed itemized receipts for homeowners. You can live-edit values, download a CSV spreadsheet, or transmit the final statement directly.
+            </p>
+          </div>
+          
+          {/* Quick Stats or status */}
+          <div className="text-xs bg-zinc-50 border border-zinc-200 rounded-lg p-2 flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500" />
+            <span className="font-semibold text-zinc-700">
+              {selectableProjects.length} Completed Projects Available
+            </span>
+          </div>
+        </div>
+
+        {/* Selected Project Input row */}
+        <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="space-y-1">
+            <label className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest block">
+              1. Select Completed Job
+            </label>
+            <select
+              value={selectedProjectId}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              className="w-full bg-white border border-zinc-200 hover:border-zinc-300 rounded-lg px-3 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:outline-hidden font-medium text-zinc-850"
+            >
+              {selectableProjects.map((p) => {
+                const isDemo = p.id.startsWith("demo-");
+                return (
+                  <option key={p.id} value={p.id}>
+                    {p.title} (${p.budget} budget) {isDemo ? " [🧪 Sim]" : " [🏠 Real]"}
+                  </option>
+                );
+              })}
+            </select>
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest block">
+              Contractor Name / Company
+            </label>
+            <input
+              type="text"
+              value={contractorBusinessName}
+              onChange={(e) => setContractorBusinessName(e.target.value)}
+              placeholder="Your Business Name"
+              className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-1.5 text-xs text-zinc-800 font-medium"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <label className="text-[10px] font-extrabold text-zinc-400 uppercase tracking-widest block">
+              Contractor Billing Email
+            </label>
+            <input
+              type="email"
+              value={contractorEmail}
+              onChange={(e) => setContractorEmail(e.target.value)}
+              placeholder="contractor@email.com"
+              className="w-full bg-white border border-zinc-200 rounded-lg px-3 py-1.5 text-xs text-zinc-850 font-mono"
+            />
+          </div>
+        </div>
+
+        {/* Split Config vs Live Preview layout */}
+        <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
+          
+          {/* LEFT: Live line item & parameter customizer (2 cols) */}
+          <div className="xl:col-span-2 space-y-5">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-zinc-800 uppercase tracking-wider block">
+                  2. Customize Itemized Charges
+                </span>
+                <button
+                  type="button"
+                  onClick={handleAddLineItem}
+                  className="bg-zinc-100 hover:bg-zinc-200 text-zinc-800 font-bold px-2.5 py-1 rounded-lg text-[10px] flex items-center gap-1 border border-zinc-200 transition"
+                >
+                  <Plus className="w-3.5 h-3.5 text-amber-600 animate-pulse" /> Add Charge Item
+                </button>
+              </div>
+
+              {/* Line items list */}
+              <div className="space-y-3 max-h-[300px] overflow-y-auto pr-1">
+                {lineItems.map((item) => (
+                  <div key={item.id} className="bg-zinc-50 border border-zinc-200 rounded-xl p-3 space-y-2 relative group">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex-1 space-y-1">
+                        <label className="text-[9px] font-bold text-zinc-400 uppercase">Item Description</label>
+                        <input
+                          type="text"
+                          value={item.description}
+                          onChange={(e) => handleUpdateLineItem(item.id, "description", e.target.value)}
+                          placeholder="e.g. Pine wood decking beams"
+                          className="w-full bg-white border border-zinc-200 rounded-lg px-2.5 py-1 text-xs text-zinc-800 font-medium"
+                        />
+                      </div>
+                      
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveLineItem(item.id)}
+                        className="p-1.5 text-zinc-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition self-end mt-1"
+                        title="Delete line"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-zinc-400 uppercase">Quantity / Hours</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={item.qty}
+                          onChange={(e) => handleUpdateLineItem(item.id, "qty", e.target.value)}
+                          className="w-full bg-white border border-zinc-200 rounded-lg px-2.5 py-1 text-xs font-mono text-zinc-800"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[9px] font-bold text-zinc-400 uppercase">Unit Price ($)</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={item.unitPrice}
+                          onChange={(e) => handleUpdateLineItem(item.id, "unitPrice", e.target.value)}
+                          className="w-full bg-white border border-zinc-200 rounded-lg px-2.5 py-1 text-xs font-mono text-zinc-800"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* General parameters */}
+            <div className="bg-zinc-50 border border-zinc-150 rounded-xl p-4 space-y-3.5">
+              <span className="text-xs font-bold text-zinc-800 block">
+                3. Additional Metadata
+              </span>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-zinc-400 uppercase">Invoice Number</label>
+                  <input
+                    type="text"
+                    value={invoiceNumber}
+                    onChange={(e) => setInvoiceNumber(e.target.value)}
+                    className="w-full bg-white border border-zinc-200 rounded-lg px-2.5 py-1 text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-zinc-400 uppercase">Local Tax Rate (%)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="30"
+                    value={taxRate}
+                    onChange={(e) => setTaxRate(Number(e.target.value) || 0)}
+                    className="w-full bg-white border border-zinc-200 rounded-lg px-2.5 py-1 text-xs font-mono"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-zinc-400 uppercase">Issue Date</label>
+                  <input
+                    type="date"
+                    value={issueDate}
+                    onChange={(e) => setIssueDate(e.target.value)}
+                    className="w-full bg-white border border-zinc-200 rounded-lg px-2 py-1 text-xs text-zinc-700"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-zinc-400 uppercase">Due Date</label>
+                  <input
+                    type="date"
+                    value={dueDate}
+                    onChange={(e) => setDueDate(e.target.value)}
+                    className="w-full bg-white border border-zinc-200 rounded-lg px-2 py-1 text-xs text-zinc-700"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[9px] font-bold text-zinc-400 uppercase">Invoice Notes / Policy</label>
+                <textarea
+                  value={notes}
+                  onChange={(e) => setNotes(e.target.value)}
+                  rows={2}
+                  className="w-full bg-white border border-zinc-200 rounded-lg px-2.5 py-1 text-xs text-zinc-700"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* RIGHT: High-contrast gorgeous Live Invoice Document (3 cols) */}
+          <div className="xl:col-span-3 bg-zinc-50 rounded-2xl p-4 border border-zinc-200 flex flex-col justify-between">
+            <div className="bg-white border border-zinc-300 rounded-xl p-6 shadow-md font-sans text-zinc-800 space-y-6 select-text" id="invoice-printable-document">
+              
+              {/* Header */}
+              <div className="flex justify-between items-start border-b border-zinc-200 pb-5">
+                <div className="space-y-1">
+                  <span className="text-[10px] bg-zinc-900 text-amber-400 font-extrabold px-2 py-0.5 rounded-xs uppercase tracking-wider font-mono">
+                    HOT SPOT WORKSPACE
+                  </span>
+                  <h4 className="text-xl font-black text-zinc-900 tracking-tight font-display">{contractorBusinessName}</h4>
+                  <p className="text-[11px] text-zinc-500 font-mono">{contractorEmail}</p>
+                </div>
+                
+                <div className="text-right space-y-1">
+                  <span className="text-sm font-bold text-zinc-400 uppercase block tracking-wide">INVOICE</span>
+                  <span className="font-mono text-xs font-black text-zinc-900 block bg-zinc-100 px-2 py-0.5 rounded-sm">
+                    {invoiceNumber}
+                  </span>
+                  <p className="text-[10px] text-zinc-500 font-medium">Status: <span className="text-emerald-600 font-bold">PAID VIA ESCROW</span></p>
+                </div>
+              </div>
+
+              {/* Bill From / Bill To details */}
+              <div className="grid grid-cols-2 gap-4 text-xs">
+                <div>
+                  <span className="text-[9px] font-extrabold text-zinc-400 uppercase tracking-wider block mb-1">Billed To (Homeowner)</span>
+                  {(() => {
+                    const proj = selectableProjects.find(p => p.id === selectedProjectId);
+                    if (!proj) return <p className="italic text-zinc-400">No project selected</p>;
+                    return (
+                      <div className="space-y-0.5">
+                        <p className="font-extrabold text-zinc-900">{proj.customerFirstName} {proj.customerLastName}</p>
+                        <p className="text-zinc-500">{proj.address}</p>
+                        <p className="text-zinc-500">{proj.city}, {proj.state} {proj.zipCode}</p>
+                        <p className="text-zinc-400 font-mono text-[10px] pt-1">{proj.customerPhone || "N/A"}</p>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                <div className="text-right space-y-1.5">
+                  <div>
+                    <span className="text-[9px] font-extrabold text-zinc-400 uppercase tracking-wider block">Invoice Date</span>
+                    <p className="font-bold text-zinc-800 font-mono text-[11px]">{issueDate}</p>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-extrabold text-zinc-400 uppercase tracking-wider block">Due Date</span>
+                    <p className="font-bold text-zinc-800 font-mono text-[11px]">{dueDate}</p>
+                  </div>
+                  <div>
+                    <span className="text-[9px] font-extrabold text-zinc-400 uppercase tracking-wider block">Completed Project</span>
+                    {(() => {
+                      const proj = selectableProjects.find(p => p.id === selectedProjectId);
+                      return <p className="font-medium text-zinc-700 truncate max-w-[200px] ml-auto" title={proj?.title}>{proj?.title}</p>;
+                    })()}
+                  </div>
+                </div>
+              </div>
+
+              {/* Itemized Table */}
+              <div className="border border-zinc-200 rounded-lg overflow-hidden">
+                <table className="w-full text-left border-collapse text-xs">
+                  <thead>
+                    <tr className="bg-zinc-50 border-b border-zinc-200 font-bold text-zinc-600 text-[10px] uppercase">
+                      <th className="py-2.5 px-3">Description</th>
+                      <th className="py-2.5 px-2 text-center w-12">Qty</th>
+                      <th className="py-2.5 px-2 text-right w-24">Unit Price</th>
+                      <th className="py-2.5 px-3 text-right w-24">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-150">
+                    {lineItems.map((item) => (
+                      <tr key={item.id} className="hover:bg-zinc-50/50">
+                        <td className="py-2.5 px-3 text-zinc-800 font-medium leading-snug">
+                          {item.description}
+                        </td>
+                        <td className="py-2.5 px-2 text-center font-mono text-zinc-600">
+                          {item.qty}
+                        </td>
+                        <td className="py-2.5 px-2 text-right font-mono text-zinc-600">
+                          ${item.unitPrice.toFixed(2)}
+                        </td>
+                        <td className="py-2.5 px-3 text-right font-mono font-bold text-zinc-900">
+                          ${(item.qty * item.unitPrice).toFixed(2)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Summaries block */}
+              <div className="flex flex-col sm:flex-row justify-between gap-4 pt-2">
+                <div className="text-[10px] text-zinc-500 max-w-xs leading-relaxed">
+                  <span className="font-bold text-zinc-700 uppercase block mb-1">Contractor Notes</span>
+                  <p className="italic">"{notes}"</p>
+                </div>
+
+                <div className="sm:w-64 space-y-2 border-t border-zinc-100 pt-2 sm:border-t-0 sm:pt-0">
+                  <div className="flex justify-between text-xs">
+                    <span className="text-zinc-500">Subtotal</span>
+                    <span className="font-mono text-zinc-800 font-semibold">${subtotal.toFixed(2)}</span>
+                  </div>
+                  <div className="flex justify-between text-xs">
+                    <span className="text-zinc-500">Estimated Local Tax ({taxRate}%)</span>
+                    <span className="font-mono text-zinc-800 font-semibold">${taxAmount.toFixed(2)}</span>
+                  </div>
+                  <div className="h-px bg-zinc-200 my-1" />
+                  <div className="flex justify-between text-sm">
+                    <strong className="text-zinc-900 font-black font-display">Grand Total (USD)</strong>
+                    <strong className="font-mono text-zinc-950 font-extrabold text-[15px]">${totalAmount.toFixed(2)}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Secured Escrow Badge footer */}
+              <div className="border-t border-dashed border-zinc-300 pt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-[9px] text-zinc-400 font-mono">
+                <span className="flex items-center gap-1">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+                  CLEARED THROUGH STRIPE ESCROW MULTISIG
+                </span>
+                <span>SYSTEM ID: {selectedProjectId}</span>
+              </div>
+            </div>
+
+            {/* Print, Download, Email buttons row */}
+            <div className="mt-4 pt-4 border-t border-zinc-200 grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const printContent = document.getElementById("invoice-printable-document");
+                  if (printContent) {
+                    const printWindow = window.open("", "_blank");
+                    if (printWindow) {
+                      printWindow.document.write(`
+                        <html>
+                          <head>
+                            <title>Invoice ${invoiceNumber}</title>
+                            <style>
+                              body { font-family: system-ui, sans-serif; color: #1f2937; padding: 40px; }
+                              .text-right { text-align: right; }
+                              .flex { display: flex; justify-content: space-between; }
+                              .border-b { border-bottom: 1px solid #e5e7eb; }
+                              .pb-5 { padding-bottom: 20px; }
+                              .pt-2 { padding-top: 8px; }
+                              .my-1 { margin-top: 4px; margin-bottom: 4px; }
+                              .space-y-6 > * + * { margin-top: 24px; }
+                              .space-y-1 > * + * { margin-top: 4px; }
+                              .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+                              table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                              th, td { padding: 10px; border-bottom: 1px solid #e5e7eb; font-size: 13px; }
+                              th { background-color: #f9fafb; font-weight: bold; text-align: left; }
+                              .font-mono { font-family: monospace; }
+                              .font-black { font-weight: 900; }
+                              .font-extrabold { font-weight: 800; }
+                              .text-emerald-600 { color: #059669; }
+                            </style>
+                          </head>
+                          <body>
+                            <div class="space-y-6">
+                              ${printContent.innerHTML}
+                            </div>
+                            <script>
+                              window.onload = function() { window.print(); }
+                            </script>
+                          </body>
+                        </html>
+                      `);
+                      printWindow.document.close();
+                    } else {
+                      window.print();
+                    }
+                  } else {
+                    window.print();
+                  }
+                }}
+                className="bg-white hover:bg-zinc-100 border border-zinc-300 text-zinc-700 font-extrabold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition duration-150"
+              >
+                <Printer className="w-4 h-4 text-zinc-500" />
+                Print Physical PDF
+              </button>
+              
+              <button
+                type="button"
+                onClick={handleDownloadCSV}
+                className="bg-white hover:bg-zinc-100 border border-zinc-300 text-zinc-700 font-extrabold py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition duration-150"
+              >
+                <Download className="w-4 h-4 text-zinc-500" />
+                Download CSV Receipt
+              </button>
+
+              <button
+                type="button"
+                onClick={handleSendEmail}
+                className="bg-amber-500 hover:bg-amber-600 text-zinc-950 font-black py-2 px-3 rounded-xl text-xs flex items-center justify-center gap-1.5 transition duration-150 shadow-sm"
+              >
+                <Send className="w-4 h-4" />
+                Send Invoice via Email
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
       {balanceData && balanceData.connectedStatus === "linked" && (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           

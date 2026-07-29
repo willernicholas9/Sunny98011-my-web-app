@@ -6,11 +6,14 @@
   --font-display: "Space Grotesk", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
-  --color-amber-50: #fffbeb;
-  --color-amber-100: #fef3c7;
-  --color-amber-500: #f59e0b;
-  --color-amber-600: #d97706;
-  --color-amber-700: #b45309;
+  --color-amber-50: #f4f7fc; /* USA flag-inspired soft light blue-gray background */
+  --color-amber-100: #dbeafe; /* USA freedom light blue highlight */
+  --color-amber-200: #bfdbfe; /* USA soft blue-200 accent */
+  --color-amber-500: #1d4ed8; /* USA freedom Royal Blue accent */
+  --color-amber-600: #e11d48; /* USA Flag vivid Crimson Red */
+  --color-amber-700: #0f172a; /* USA deepest Navy Blue shadow */
+  --color-amber-900: #0a192f; /* USA high-contrast dark Navy text */
+  --color-amber-950: #050d1a; /* USA deepest midnight text background */
 }
 
 @layer base {
@@ -18,3 +21,26 @@
     @apply font-sans bg-zinc-50 text-zinc-900 selection:bg-amber-100 antialiased;
   }
 }
+
+/* Senior Accessibility Mode Typography Scaling */
+.senior-mode {
+  font-size: 1.15rem; /* App-wide font scale boost */
+}
+.senior-mode p {
+  font-size: 1rem !important; /* Explicitly boost body paragraphs */
+  line-height: 1.625 !important;
+  color: #18181b !important; /* Higher contrast dark zinc */
+}
+.senior-mode button {
+  padding-top: 0.75rem !important;
+  padding-bottom: 0.75rem !important;
+  font-weight: 800 !important; /* Extra bold actions for clearer visibility */
+}
+.senior-mode h1, .senior-mode h2, .senior-mode h3 {
+  letter-spacing: -0.015em !important;
+  color: #09090b !important; /* Max contrast heading titles */
+}
+.senior-mode .text-xs, .senior-mode .text-[11px], .senior-mode .text-[10px] {
+  font-size: 0.85rem !important; /* Boost micro-captions */
+}
+
