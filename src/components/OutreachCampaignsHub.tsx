@@ -12,6 +12,7 @@ interface OutreachCampaignsHubProps {
   seniorMode: boolean;
   setSeniorMode: (enabled: boolean) => void;
   appUrl?: string;
+  onSendEmailCampaign?: (subject: string, body: string) => void;
 }
 
 export default function OutreachCampaignsHub({
@@ -19,7 +20,8 @@ export default function OutreachCampaignsHub({
   onAlert,
   seniorMode,
   setSeniorMode,
-  appUrl = window.location.origin
+  appUrl = window.location.origin,
+  onSendEmailCampaign
 }: OutreachCampaignsHubProps) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedFb, setCopiedFb] = useState(false);
@@ -453,6 +455,11 @@ export default function OutreachCampaignsHub({
                     </button>
                     <a
                       href={`mailto:?subject=Local contractor marketplace&body=${encodeURIComponent(emailCopy)}`}
+                      onClick={() => {
+                        if (onSendEmailCampaign) {
+                          onSendEmailCampaign("Easy & Safe Local Home Repairs with Hot Spot Work Shop", emailCopy);
+                        }
+                      }}
                       className="flex-1 py-2 px-3 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-1.5 text-center cursor-pointer"
                     >
                       <Mail className="w-3.5 h-3.5" /> Send as Email Campaign

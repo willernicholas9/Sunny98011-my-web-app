@@ -1,14 +1,19 @@
-import React from "react";
-import { Hammer, CircleAlert, Mail, LogOut, LogIn, HardHat, Bot } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { Hammer, CircleAlert, Mail, LogOut, LogIn, HardHat, Bot, Wifi, WifiOff, Cloud, RefreshCw, Crown, Smartphone, Apple } from "lucide-react";
+import { persistenceCheck } from "../services/persistenceCheck";
+import { PersistenceState } from "../types/persistenceTypes";
+
+export type TabType = "spiral_game" | "projects" | "contractors" | "my_dashboard" | "stripe_hub" | "outreach" | "ai_agent" | "owner_suite" | "monetize";
 
 interface NavbarProps {
   currentUser: any;
   onTriggerLogin: () => void;
   onLogout: () => void;
-  activeTab: "projects" | "contractors" | "my_dashboard" | "stripe_hub" | "outreach" | "ai_agent";
-  onChangeTab: (tab: "projects" | "contractors" | "my_dashboard" | "stripe_hub" | "outreach" | "ai_agent") => void;
+  activeTab: TabType;
+  onChangeTab: (tab: TabType) => void;
   onToggleEmailLog: () => void;
   emailCount: number;
+  onOpenAppStoreModal?: () => void;
 }
 
 export default function Navbar({
@@ -19,7 +24,16 @@ export default function Navbar({
   onChangeTab,
   onToggleEmailLog,
   emailCount,
+  onOpenAppStoreModal,
 }: NavbarProps) {
+  const [persistenceState, setPersistenceState] = useState<PersistenceState>(persistenceCheck.getState());
+
+  useEffect(() => {
+    const unsub = persistenceCheck.subscribe((st) => {
+      setPersistenceState(st);
+    });
+    return () => unsub();
+  }, []);
   return (
     <header className="bg-white border-b border-zinc-200 sticky top-0 z-40" id="platform-navbar">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -46,7 +60,7 @@ export default function Navbar({
               onClick={() => onChangeTab("projects")}
               className={`px-4 py-2 text-xs font-bold rounded-xl transition duration-150 ${
                 activeTab === "projects"
-                  ? "bg-amber-100 text-amber-900 shadow-3xs"
+                  ? "bg-amber-100 text-amber-900 shadow-3xs font-extrabold"
                   : "text-zinc-650 hover:bg-zinc-50 hover:text-zinc-900"
               }`}
               id="nav-tab-projects"
@@ -57,7 +71,7 @@ export default function Navbar({
               onClick={() => onChangeTab("contractors")}
               className={`px-4 py-2 text-xs font-bold rounded-xl transition duration-150 ${
                 activeTab === "contractors"
-                  ? "bg-amber-100 text-amber-900 shadow-3xs"
+                  ? "bg-amber-100 text-amber-900 shadow-3xs font-extrabold"
                   : "text-zinc-650 hover:bg-zinc-50 hover:text-zinc-900"
               }`}
               id="nav-tab-contractors"
@@ -68,41 +82,130 @@ export default function Navbar({
               onClick={() => onChangeTab("my_dashboard")}
               className={`px-4 py-2 text-xs font-bold rounded-xl transition duration-150 ${
                 activeTab === "my_dashboard"
-                  ? "bg-amber-100 text-amber-900 shadow-3xs"
+                  ? "bg-amber-100 text-amber-900 shadow-3xs font-extrabold"
                   : "text-zinc-650 hover:bg-zinc-50 hover:text-zinc-900"
               }`}
               id="nav-tab-dashboard"
             >
               🛠️ My Dashboard Console
             </button>
+            {(currentUser?.role === "owner" || currentUser?.isPlatformOwner || currentUser?.username === "nwiller9185") && (
+              <>
+                <button
+                  onClick={() => onChangeTab("outreach")}
+                  className={`px-4 py-2 text-xs font-bold rounded-xl transition duration-150 ${
+                    activeTab === "outreach"
+                      ? "bg-amber-100 text-amber-900 shadow-3xs font-extrabold"
+                      : "text-zinc-650 hover:bg-zinc-50 hover:text-zinc-900"
+                  }`}
+                  id="nav-tab-outreach"
+                >
+                  📣 Outreach & Campaigns
+                </button>
+                <button
+                  onClick={() => onChangeTab("ai_agent")}
+                  className={`px-4 py-2 text-xs font-bold rounded-xl transition duration-150 flex items-center gap-1.5 ${
+                    activeTab === "ai_agent"
+                      ? "bg-red-600 text-white shadow-md animate-pulse font-extrabold"
+                      : "bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
+                  }`}
+                  id="nav-tab-ai-agent"
+                  title="Autonomous AI Advertising & System Installer Agent"
+                >
+                  <Bot className="w-4 h-4 text-red-600 group-hover:animate-bounce inline" />
+                  <span>🤖 AI Ad Agent</span>
+                </button>
+                <button
+                  onClick={() => onChangeTab("owner_suite")}
+                  className={`px-4 py-2 text-xs font-black rounded-xl transition duration-150 flex items-center gap-1.5 ${
+                    activeTab === "owner_suite"
+                      ? "bg-amber-500 text-zinc-950 shadow-md ring-2 ring-amber-300 font-extrabold"
+                      : "bg-amber-100/80 text-amber-950 hover:bg-amber-200 border border-amber-300"
+                  }`}
+                  id="nav-tab-owner-suite"
+                  title="Platform Creator & Owner Executive Suite"
+                >
+                  <span>👑 Owner Console</span>
+                </button>
+              </>
+            )}
             <button
-              onClick={() => onChangeTab("outreach")}
-              className={`px-4 py-2 text-xs font-bold rounded-xl transition duration-150 ${
-                activeTab === "outreach"
-                  ? "bg-amber-100 text-amber-900 shadow-3xs"
-                  : "text-zinc-650 hover:bg-zinc-50 hover:text-zinc-900"
+              onClick={() => onChangeTab("monetize")}
+              className={`px-4 py-2 text-xs font-black rounded-xl transition duration-150 flex items-center gap-1.5 ${
+                activeTab === "monetize"
+                  ? "bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md ring-2 ring-amber-300 font-extrabold"
+                  : "bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200"
               }`}
-              id="nav-tab-outreach"
+              id="nav-tab-monetize"
+              title="Monetization Hub, Subscriptions, Boosts & Revenue Ledger"
             >
-              📣 Outreach & Campaigns
+              <Crown className="w-3.5 h-3.5 text-amber-600" />
+              <span>💰 Go Pro / Monetize</span>
             </button>
             <button
-              onClick={() => onChangeTab("ai_agent")}
-              className={`px-4 py-2 text-xs font-bold rounded-xl transition duration-150 flex items-center gap-1.5 ${
-                activeTab === "ai_agent"
-                  ? "bg-red-600 text-white shadow-md animate-pulse"
-                  : "bg-red-50 text-red-700 hover:bg-red-100 border border-red-200"
+              onClick={() => onChangeTab("spiral_game")}
+              className={`px-3 py-2 text-xs font-bold rounded-xl transition duration-150 flex items-center gap-1.5 ${
+                activeTab === "spiral_game"
+                  ? "bg-gradient-to-r from-cyan-400 via-amber-400 to-rose-500 text-slate-950 shadow-md font-black"
+                  : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200 border border-zinc-250 font-semibold"
               }`}
-              id="nav-tab-ai-agent"
-              title="Autonomous AI Advertising & System Installer Agent"
+              id="nav-tab-spiral-game"
+              title="Bonus 3D Arcade Tower Climber Game"
             >
-              <Bot className="w-4 h-4 text-red-600 group-hover:animate-bounce inline" />
-              <span>🤖 AI Ad & Install Agent</span>
+              <span>🌀 Arcade Game</span>
             </button>
           </nav>
 
           {/* Right actions */}
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Apple App Store & iOS Install Button */}
+            <button
+              type="button"
+              onClick={onOpenAppStoreModal}
+              title="Download on Apple App Store & iOS Home Screen"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-zinc-900 hover:bg-zinc-800 text-white border border-zinc-700 shadow-xs transition duration-150 active:scale-95 cursor-pointer shrink-0"
+              id="navbar-appstore-btn"
+            >
+              <Apple className="w-4 h-4 text-white" />
+              <span className="hidden sm:inline">App Store</span>
+              <span className="sm:hidden inline">iOS</span>
+            </button>
+
+            {/* Persistence & Connectivity Status Badge */}
+            <button
+              type="button"
+              onClick={() => {
+                // Toggle simulation for quick tester convenience
+                persistenceCheck.toggleSimulatedOffline();
+              }}
+              title={
+                persistenceState.isOnline
+                  ? "Persistence-Check: Online & Cloud Synced. Click to simulate Offline mode."
+                  : `Persistence-Check: Offline. ${persistenceState.pendingCount} update(s) queued for sync. Click to restore Online mode.`
+              }
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition cursor-pointer ${
+                persistenceState.isOnline
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
+                  : "bg-amber-500 text-white border-amber-600 shadow-xs animate-pulse"
+              }`}
+              id="navbar-persistence-status-pill"
+            >
+              {persistenceState.isOnline ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                  <Wifi className="w-3.5 h-3.5 text-emerald-600 hidden sm:inline" />
+                  <span className="hidden sm:inline">Online</span>
+                </>
+              ) : (
+                <>
+                  <WifiOff className="w-3.5 h-3.5 text-white shrink-0" />
+                  <span>
+                    Offline {persistenceState.pendingCount > 0 ? `(${persistenceState.pendingCount} Q)` : ""}
+                  </span>
+                </>
+              )}
+            </button>
+
             {/* Quick Email logs toggle */}
             <button
               onClick={onToggleEmailLog}
@@ -189,21 +292,43 @@ export default function Navbar({
             🛠️ Dashboard
           </button>
           <button
-            onClick={() => onChangeTab("outreach")}
-            className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition ${
-              activeTab === "outreach" ? "bg-amber-100 text-amber-900" : "text-zinc-600"
-            }`}
+            onClick={onOpenAppStoreModal}
+            className="px-2.5 py-1 text-[10px] font-extrabold rounded-lg transition bg-zinc-950 text-white flex items-center gap-1"
+            id="mobile-nav-appstore-btn"
           >
-            📣 Outreach
+            <Apple className="w-3 h-3 text-white" />
+            <span>App Store</span>
           </button>
-          <button
-            onClick={() => onChangeTab("ai_agent")}
-            className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition flex items-center gap-1 ${
-              activeTab === "ai_agent" ? "bg-red-600 text-white" : "bg-red-50 text-red-700 border border-red-200"
-            }`}
-          >
-            <span>🤖 AI Ad Agent</span>
-          </button>
+          {(currentUser?.role === "owner" || currentUser?.isPlatformOwner || currentUser?.username === "nwiller9185") && (
+            <>
+              <button
+                onClick={() => onChangeTab("outreach")}
+                className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition ${
+                  activeTab === "outreach" ? "bg-amber-100 text-amber-900" : "text-zinc-600"
+                }`}
+              >
+                📣 Outreach
+              </button>
+              <button
+                onClick={() => onChangeTab("ai_agent")}
+                className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition flex items-center gap-1 ${
+                  activeTab === "ai_agent" ? "bg-red-600 text-white" : "bg-red-50 text-red-700 border border-red-200"
+                }`}
+              >
+                <span>🤖 AI Ad Agent</span>
+              </button>
+            </>
+          )}
+          {(currentUser?.role === "owner" || currentUser?.isPlatformOwner || currentUser?.username === "nwiller9185") && (
+            <button
+              onClick={() => onChangeTab("owner_suite")}
+              className={`px-2.5 py-1 text-[10px] font-extrabold rounded-lg transition ${
+                activeTab === "owner_suite" ? "bg-amber-500 text-zinc-950 font-black" : "bg-amber-100 text-amber-950 border border-amber-300"
+              }`}
+            >
+              👑 Owner Console
+            </button>
+          )}
         </div>
 
       </div>

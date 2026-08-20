@@ -460,6 +460,77 @@ export default function StripeHub({
         </div>
       </div>
 
+      {/* Where Is The Money Getting Transferred? - Explicit Flow Breakdown */}
+      <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-blue-950 border border-blue-800 rounded-2xl p-5 text-white shadow-md space-y-4" id="money-transfer-breakdown-card">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-blue-800/80 pb-3">
+          <div className="flex items-center gap-2">
+            <Building className="w-5 h-5 text-amber-400 shrink-0" />
+            <h3 className="font-display font-black text-sm sm:text-base tracking-tight text-white uppercase">
+              Where Is The Money Getting Transferred?
+            </h3>
+          </div>
+          <span className="bg-blue-900/90 text-blue-200 border border-blue-700 text-[10px] uppercase font-mono font-bold px-3 py-1 rounded-full shrink-0">
+            Automated Stripe Escrow & Payout Architecture
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          {/* Step 1: Customer */}
+          <div className="bg-slate-900/80 border border-blue-800/60 rounded-xl p-3.5 space-y-2 relative">
+            <div className="flex items-center justify-between">
+              <span className="bg-blue-900 text-amber-300 font-extrabold text-[10px] px-2 py-0.5 rounded-md">
+                1. Customer Payment
+              </span>
+              <DollarSign className="w-4 h-4 text-emerald-400" />
+            </div>
+            <p className="font-bold text-white text-xs">Homeowner Pays via Stripe</p>
+            <p className="text-[11px] text-blue-200/90 leading-relaxed">
+              Customer deposits project budget + $20 platform service fee using credit card, debit, or Apple Pay.
+            </p>
+          </div>
+
+          {/* Step 2: Escrow Safeguard */}
+          <div className="bg-slate-900/80 border border-amber-500/40 rounded-xl p-3.5 space-y-2 relative">
+            <div className="flex items-center justify-between">
+              <span className="bg-amber-500/20 text-amber-300 font-extrabold text-[10px] px-2 py-0.5 rounded-md border border-amber-500/30">
+                2. Stripe Escrow Vault
+              </span>
+              <ShieldCheck className="w-4 h-4 text-amber-400" />
+            </div>
+            <p className="font-bold text-white text-xs">Funds Held In Escrow</p>
+            <p className="text-[11px] text-blue-200/90 leading-relaxed">
+              Money is locked safely in Stripe Escrow. Neither party can withdraw until the homeowner verifies work is completed.
+            </p>
+          </div>
+
+          {/* Step 3: Payout Destinations */}
+          <div className="bg-slate-900/80 border border-emerald-500/40 rounded-xl p-3.5 space-y-2 relative">
+            <div className="flex items-center justify-between">
+              <span className="bg-emerald-500/20 text-emerald-300 font-extrabold text-[10px] px-2 py-0.5 rounded-md border border-emerald-500/30">
+                3. Final Bank Payouts
+              </span>
+              <ArrowUpRight className="w-4 h-4 text-emerald-400" />
+            </div>
+            <p className="font-bold text-white text-xs">Dual Bank Distribution</p>
+            <p className="text-[11px] text-blue-200/90 leading-relaxed">
+              • <strong>100% Project Funds:</strong> Transferred directly to Contractor Bank Account.<br/>
+              • <strong>$20 Platform Service Fee:</strong> Transferred to Platform Owner Treasury Bank Account.
+            </p>
+          </div>
+        </div>
+
+        {/* Bank Connection Details Summary */}
+        <div className="bg-blue-900/40 border border-blue-800/80 rounded-xl p-3 text-[11px] text-blue-100 flex flex-wrap items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Connected Bank Payout Destination: <strong className="text-white font-mono">{balanceData?.bankName || "Chase Bank N.A."} (ending in {balanceData?.last4 || "6789"})</strong></span>
+          </div>
+          <span className="text-amber-300 font-bold bg-blue-900/80 px-2.5 py-0.5 rounded-md border border-blue-700">
+            Payout Speed: {balanceData?.payoutSchedule || "Daily Rolling 2-Day Business Deposits"}
+          </span>
+        </div>
+      </div>
+
       {!stripeStatusInfo?.configured && (
         <div className="bg-amber-550/10 border border-amber-500/20 rounded-xl p-4 flex gap-3 text-amber-950 text-xs leading-relaxed">
           <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />

@@ -1,4 +1,23 @@
-import { CustomerUser, ContractorUser, Project, Bid } from "../types";
+import { CustomerUser, ContractorUser, Project, Bid, OwnerUser } from "../types";
+
+export const OWNER_USER: OwnerUser = {
+  id: "owner-1",
+  username: "nwiller9185",
+  fullName: "Nicholas Willer",
+  email: "willernicholas9@gmail.com",
+  phone: "512-555-9185",
+  address: "7185 Owner Drive",
+  city: "Austin",
+  state: "TX",
+  zipCode: "78701",
+  creditCard: { number: "4111222233334444", expiry: "12/29", cvv: "918" },
+  role: "owner",
+  isPlatformOwner: true,
+  createdAt: "2026-06-06T15:22:11Z",
+  company: "Willer Construction & Platform Owner Suite",
+  avatarUrl: "https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=150&auto=format&fit=crop&q=80",
+  trades: ["Landscaping", "Garden Work", "Gutter Cleaning", "General Handyman Projects"],
+};
 
 // Seed active contractors
 export const INITIAL_CONTRACTORS: ContractorUser[] = [
@@ -13,9 +32,10 @@ export const INITIAL_CONTRACTORS: ContractorUser[] = [
     state: "TX",
     zipCode: "78701",
     creditCard: { number: "4111222233334444", expiry: "12/29", cvv: "918" },
-    role: "contractor",
+    role: "owner",
+    isPlatformOwner: true,
     createdAt: "2026-06-06T15:22:11Z",
-    company: "Willer Construction Industries",
+    company: "Willer Construction & Platform Owner Suite",
     avatarUrl: "https://images.unsplash.com/photo-1540569014015-19a7be504e3a?w=150&auto=format&fit=crop&q=80",
     trades: ["Landscaping", "Garden Work", "Gutter Cleaning", "General Handyman Projects"],
     insuranceUrl: "liability-willer-2026.pdf",
@@ -198,8 +218,10 @@ export const INITIAL_PROJECTS: Project[] = [
     state: "TX",
     zipCode: "78664",
     images: [
-      "https://images.unsplash.com/photo-1558905611-1402263dae20?w=600&auto=format&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=600&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1558905611-1402263dae20?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1558904541-efa8c1a68f6f?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1589939705384-5185137a7f0f?w=800&auto=format&fit=crop&q=80",
     ],
     status: "bid_placed",
     agreedByCustomer: false,
@@ -224,7 +246,9 @@ export const INITIAL_PROJECTS: Project[] = [
     state: "IL",
     zipCode: "60601",
     images: [
-      "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=800&auto=format&fit=crop&q=80",
     ],
     status: "open",
     agreedByCustomer: false,
@@ -249,7 +273,9 @@ export const INITIAL_PROJECTS: Project[] = [
     state: "CA",
     zipCode: "91101",
     images: [
-      "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=600&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1593305841991-05c297ba4575?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1593784991095-a205069470b6?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=800&auto=format&fit=crop&q=80",
     ],
     status: "open",
     agreedByCustomer: false,
@@ -274,7 +300,9 @@ export const INITIAL_PROJECTS: Project[] = [
     state: "TX",
     zipCode: "78664",
     images: [
-      "https://images.unsplash.com/photo-1549417229-aa67d3263c09?w=600&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1549417229-aa67d3263c09?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1504307651254-35680f356dfd?w=800&auto=format&fit=crop&q=80",
+      "https://images.unsplash.com/photo-1581244277943-fe4a9c777189?w=800&auto=format&fit=crop&q=80",
     ],
     status: "accepted",
     acceptedContractorId: "contractor-1",

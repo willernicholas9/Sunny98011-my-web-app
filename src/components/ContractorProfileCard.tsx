@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { ContractorUser, Review } from "../types";
-import { Star, ShieldAlert, BadgeCheck, MessageSquare, Plus, Check, FileDown, Printer, Download, X, Award, ShieldCheck, FileText, CheckCircle2 } from "lucide-react";
+import { Star, ShieldAlert, BadgeCheck, MessageSquare, Plus, Check, FileDown, Printer, Download, X, Award, ShieldCheck, FileText, CheckCircle2, Sparkles } from "lucide-react";
 
 interface ContractorProfileCardProps {
   key?: string | number;
@@ -369,18 +369,32 @@ export default function ContractorProfileCard({
                 <h3 className="font-display text-base font-bold text-zinc-900 leading-none">
                   {contractor.fullName}
                 </h3>
+                <span className="inline-flex items-center gap-1 text-[9px] bg-amber-500 text-slate-950 font-black px-2 py-0.5 rounded-full shadow-2xs border border-amber-300">
+                  <Sparkles className="w-2.5 h-2.5" />
+                  <span>98% Smart Match</span>
+                </span>
                 {contractor.availableNow ? (
-                  <span className="inline-flex items-center gap-1 text-[9px] bg-emerald-50 text-emerald-700 font-bold px-1.5 py-0.5 border border-emerald-200 rounded-full">
+                  <button
+                    type="button"
+                    onClick={() => onToggleAvailability && onToggleAvailability(contractor.id)}
+                    className="inline-flex items-center gap-1 text-[9px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold px-2 py-0.5 border border-emerald-300 rounded-full cursor-pointer transition shadow-2xs"
+                    title="Click to toggle availability status"
+                  >
                     <span className="relative flex h-1.5 w-1.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                       <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
                     </span>
-                    Available Now
-                  </span>
+                    <span>Available Now (On-Duty)</span>
+                  </button>
                 ) : (
-                  <span className="inline-flex items-center gap-0.5 text-[9px] bg-zinc-100 text-zinc-500 font-medium px-1.5 py-0.5 border border-zinc-250 rounded-full">
-                    Busy / Offline
-                  </span>
+                  <button
+                    type="button"
+                    onClick={() => onToggleAvailability && onToggleAvailability(contractor.id)}
+                    className="inline-flex items-center gap-0.5 text-[9px] bg-zinc-100 hover:bg-zinc-200 text-zinc-600 font-bold px-2 py-0.5 border border-zinc-300 rounded-full cursor-pointer transition shadow-2xs"
+                    title="Click to toggle availability status"
+                  >
+                    <span>Offline / Set Available</span>
+                  </button>
                 )}
                 {contractor.insuranceUrl && (
                   <span className="inline-flex items-center gap-0.5 text-[9px] bg-cyan-50 text-cyan-750 font-semibold px-1.5 py-0.5 border border-cyan-200 rounded-full">

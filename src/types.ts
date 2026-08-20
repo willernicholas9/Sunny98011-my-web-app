@@ -1,4 +1,4 @@
-export type UserRole = "customer" | "contractor" | "guest";
+export type UserRole = "customer" | "contractor" | "owner" | "guest";
 
 export interface BaseUser {
   id: string;
@@ -16,16 +16,17 @@ export interface BaseUser {
     cvv: string;
   };
   role: UserRole;
+  isPlatformOwner?: boolean;
   createdAt: string;
   pushNotificationsEnabled?: boolean;
 }
 
 export interface CustomerUser extends BaseUser {
-  role: "customer";
+  role: "customer" | "owner";
 }
 
 export interface ContractorUser extends BaseUser {
-  role: "contractor";
+  role: "contractor" | "owner";
   company?: string;
   avatarUrl: string;
   trades: string[];
@@ -33,8 +34,20 @@ export interface ContractorUser extends BaseUser {
   insuranceName?: string;
   reviews: Review[];
   subscriptionActive: boolean;
+  subscriptionTier?: "free" | "pro" | "enterprise";
+  subscriptionExpiresAt?: string;
+  leadCredits?: number; // Pay-per-lead credits for direct homeowner contact unlocks
+  verifiedProBadge?: boolean;
   emailNotificationsEnabled: boolean; // "send email to contractors who signup for this option"
   availableNow?: boolean; // Currently available for instant assignment or rapid response
+}
+
+export interface OwnerUser extends BaseUser {
+  role: "owner";
+  isPlatformOwner: true;
+  company?: string;
+  avatarUrl?: string;
+  trades?: string[];
 }
 
 export interface Review {
@@ -68,6 +81,15 @@ export interface Project {
   agreedByContractor: boolean;
   createdAt: string;
   serviceFeeCharge: number; // calculated service fee ($5 or $20)
+  targetCompletionDate?: string; // e.g. "2026-08-10" or calculated
+  estimatedDaysToComplete?: number; // e.g. 3
+  complexityLevel?: "Low" | "Medium" | "High" | "Major Renovation";
+  isEmergency?: boolean; // ⚡ 24/7 Emergency Dispatch
+  emergencyCategory?: "Plumbing Leak" | "Power Outage" | "Roof/Storm Damage" | "HVAC/Heating" | "Locksmith" | "Other";
+  isBoosted?: boolean; // 🚀 Paid Priority Spotlight
+  boostTier?: "standard_boost" | "urgent_rush" | "vip_spotlight";
+  boostExpiresAt?: string;
+  warrantyProtected?: boolean; // 🛡️ $4.99 100% Escrow Dispute Protection
 }
 
 export interface NegotiationStep {
@@ -111,6 +133,11 @@ export interface EmailLog {
   subject: string;
   body: string;
   timestamp: string;
+  category?: "radius_alert" | "bid_negotiation" | "outreach" | "system" | "welcome";
+  senderName?: string;
+  senderEmail?: string;
+  status?: "dispatched" | "delivered" | "failed";
+  radiusMiles?: number;
 }
 
 export interface PrivateChatMessage {
@@ -136,3 +163,43 @@ export const TRADE_OPTIONS = [
   "Plumbing Repair",
   "Electrical Maintenance",
 ];
+
+export type MonetizationProductType = 
+  | "contractor_pro_subscription" // $29.00 / month
+  | "contractor_enterprise_subscription" // $99.00 / month
+  | "project_priority_boost" // $9.99
+  | "project_emergency_rush" // $19.99
+  | "escrow_protection_warranty" // $4.99
+  | "lead_credits_pack_small" // $15.00 (5 leads)
+  | "lead_credits_pack_medium" // $49.00 (20 leads)
+  | "lead_credits_pack_large" // $99.00 (50 leads)
+  | "escrow_platform_take_rate"; // 3% escrow processing fee
+
+export interface MonetizationTransaction {
+  id: string;
+  userId: string;
+  userName: string;
+  userRole: UserRole;
+  productType: MonetizationProductType;
+  title: string;
+  amount: number;
+  currency: string;
+  status: "succeeded" | "pending" | "refunded";
+  timestamp: string;
+  projectId?: string;
+  contractorId?: string;
+  paymentMethod: "stripe_card" | "apple_pay" | "google_pay" | "wallet_balance";
+  referenceId?: string;
+}
+
+export interface PlatformMonetizationStats {
+  grossMerchandiseValue: number; // Total volume of jobs executed through platform
+  platformGrossRevenue: number; // Total fees, subscriptions, and boosts collected
+  monthlyRecurringRevenue: number; // Active recurring contractor subscriptions
+  activeProContractorsCount: number;
+  boostedProjectsCount: number;
+  escrowCommissionsTotal: number;
+  availablePayoutBalance: number;
+  leadCreditsPurchasedCount: number;
+}
+

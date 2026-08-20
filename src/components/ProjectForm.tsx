@@ -1,7 +1,8 @@
 import React, { useState, useRef } from "react";
 import { Project, CityData } from "../types";
-import { Upload, X, Info, Hammer, MapPin, DollarSign, Image as ImageIcon } from "lucide-react";
+import { Upload, X, Info, Hammer, MapPin, DollarSign, Image as ImageIcon, Save, Check, Calculator, Sparkles } from "lucide-react";
 import { CITIES } from "../data/cities";
+import InstantQuoteCalculator from "./InstantQuoteCalculator";
 
 interface ProjectFormProps {
   onAddProject: (projectData: Omit<Project, "id" | "customerId" | "customerFirstName" | "customerLastName" | "customerPhone" | "customerAddress" | "customerEmail" | "createdAt" | "status" | "agreedByCustomer" | "agreedByContractor" | "serviceFeeCharge">) => void;
@@ -18,15 +19,33 @@ const IMAGE_PRESETS = [
 ];
 
 export default function ProjectForm({ onAddProject, onClose, currentUser }: ProjectFormProps) {
+  const [showCalculatorWidget, setShowCalculatorWidget] = useState(false);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [budget, setBudget] = useState("");
   const [type, setType] = useState<"home" | "business">("home");
   const [address, setAddress] = useState("");
   const [zipCode, setZipCode] = useState("");
+  const [zipSaved, setZipSaved] = useState(false);
   const [city, setCity] = useState("Austin");
   const [state, setState] = useState("TX");
   const [autoFillFromProfile, setAutoFillFromProfile] = useState(false);
+  const [isEmergency, setIsEmergency] = useState(false);
+  const [emergencyCategory, setEmergencyCategory] = useState<"Plumbing Leak" | "Power Outage" | "Roof/Storm Damage" | "HVAC/Heating" | "Locksmith" | "Other">("Plumbing Leak");
+
+  const handleSaveZip = () => {
+    if (!zipCode.trim()) return;
+    const foundCity = CITIES.find((c) => c.zipCode === zipCode.trim());
+    if (foundCity) {
+      setCity(foundCity.name);
+      setState(foundCity.state);
+    }
+    try {
+      localStorage.setItem("hsws_saved_zip", zipCode.trim());
+    } catch {}
+    setZipSaved(true);
+    setTimeout(() => setZipSaved(false), 3000);
+  };
   
   // Pictures control
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
@@ -173,6 +192,8 @@ export default function ProjectForm({ onAddProject, onClose, currentUser }: Proj
       state,
       zipCode,
       images: finalImages,
+      isEmergency,
+      emergencyCategory: isEmergency ? emergencyCategory : undefined,
     });
     
     onClose();
@@ -194,6 +215,39 @@ export default function ProjectForm({ onAddProject, onClose, currentUser }: Proj
         </div>
 
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          {/* Quick AI Estimator Banner */}
+          <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-blue-950 border border-blue-800 rounded-2xl p-4 text-white shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400 shrink-0">
+                <Calculator className="w-4 h-4" />
+              </div>
+              <div>
+                <span className="font-extrabold text-xs text-white block">Unsure of fair contractor pricing?</span>
+                <span className="text-[11px] text-slate-300">Use our AI Price Estimator to calculate market quotes instantly.</span>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowCalculatorWidget(!showCalculatorWidget)}
+              className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs px-3.5 py-2 rounded-xl transition flex items-center justify-center gap-1.5 cursor-pointer shrink-0 shadow-3xs"
+            >
+              <Sparkles className="w-3.5 h-3.5 fill-slate-950" />
+              <span>{showCalculatorWidget ? "Hide Price Estimator" : "Calculate Fair Price"}</span>
+            </button>
+          </div>
+
+          {showCalculatorWidget && (
+            <InstantQuoteCalculator
+              onApplyEstimateToForm={(trade, estimatedBudget, autoTitle, autoDesc) => {
+                setBudget(estimatedBudget.toString());
+                if (!title) setTitle(autoTitle);
+                if (!description) setDescription(autoDesc);
+                setShowCalculatorWidget(false);
+              }}
+              onClose={() => setShowCalculatorWidget(false)}
+            />
+          )}
+
           {/* Project Header fields */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
@@ -223,6 +277,50 @@ export default function ProjectForm({ onAddProject, onClose, currentUser }: Proj
                 />
               </div>
             </div>
+          </div>
+
+          {/* ⚡ Emergency 24/7 Service Option Card */}
+          <div className="bg-gradient-to-r from-rose-950/10 via-rose-900/5 to-transparent border border-rose-300 rounded-2xl p-4 space-y-3" id="project-emergency-option-card">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">⚡</span>
+                <div>
+                  <h4 className="text-xs font-black text-rose-900 uppercase tracking-wider font-display">24/7 Emergency Dispatch Request</h4>
+                  <p className="text-[11px] text-zinc-600">Need urgent help? (e.g., Burst pipe, blackout, lockout, roof leak)</p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isEmergency}
+                  onChange={(e) => setIsEmergency(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-rose-600"></div>
+              </label>
+            </div>
+
+            {isEmergency && (
+              <div className="pt-2 border-t border-rose-200/60 space-y-2 animate-fadeIn">
+                <label className="block text-[11px] font-bold text-rose-900 uppercase tracking-wider">Select Emergency Type</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {(["Plumbing Leak", "Power Outage", "Roof/Storm Damage", "HVAC/Heating", "Locksmith", "Other"] as const).map((cat) => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => setEmergencyCategory(cat)}
+                      className={`px-2.5 py-1.5 rounded-xl border text-[11px] font-bold transition text-left cursor-pointer ${
+                        emergencyCategory === cat
+                          ? "bg-rose-600 text-white border-rose-600 shadow-xs"
+                          : "bg-white text-zinc-700 border-rose-200 hover:border-rose-300"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
 
           <div>
@@ -293,16 +391,56 @@ export default function ProjectForm({ onAddProject, onClose, currentUser }: Proj
                 />
               </div>
               <div>
-                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Zip Code</label>
-                <input
-                  type="text"
-                  placeholder="78664"
-                  value={zipCode}
-                  onChange={(e) => handleZipChange(e.target.value)}
-                  required
-                  className="w-full bg-white border border-zinc-300 rounded-xl px-3 py-2.5 text-sm focus:ring-1 focus:ring-amber-500 focus:outline-hidden transition"
-                  id="form-project-zip"
-                />
+                <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5 flex items-center justify-between">
+                  <span>Zip Code</span>
+                  {zipSaved && (
+                    <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1 animate-in fade-in">
+                      <Check className="w-3 h-3" /> Zip Saved
+                    </span>
+                  )}
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="78664"
+                    value={zipCode}
+                    onChange={(e) => {
+                      handleZipChange(e.target.value);
+                      if (zipSaved) setZipSaved(false);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleSaveZip();
+                      }
+                    }}
+                    required
+                    className="flex-1 bg-white border border-zinc-300 rounded-xl px-3 py-2.5 text-sm focus:ring-1 focus:ring-amber-500 focus:outline-hidden transition"
+                    id="form-project-zip"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleSaveZip}
+                    className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-3xs shrink-0 ${
+                      zipSaved
+                        ? "bg-emerald-600 text-white border border-emerald-700"
+                        : "bg-amber-600 hover:bg-amber-700 text-white border border-amber-700"
+                    }`}
+                    id="save-project-zip-btn"
+                    data-testid="save-project-zip-btn"
+                    title="Save Zip Code"
+                  >
+                    {zipSaved ? (
+                      <>
+                        <Check className="w-3.5 h-3.5" /> Saved
+                      </>
+                    ) : (
+                      <>
+                        <Save className="w-3.5 h-3.5" /> Save
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
             </div>
 

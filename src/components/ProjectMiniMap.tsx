@@ -49,11 +49,15 @@ function ProjectLocationPin() {
 interface ProjectMiniMapProps {
   userCityName: string;
   projectCityName: string;
+  compact?: boolean;
+  onViewOnMap?: () => void;
 }
 
 export default function ProjectMiniMap({
   userCityName,
   projectCityName,
+  compact = false,
+  onViewOnMap,
 }: ProjectMiniMapProps) {
   // Find cities data
   const userCity = useMemo(() => {
@@ -116,6 +120,81 @@ export default function ProjectMiniMap({
 
   const isSameCity = userCityName.toLowerCase() === projectCityName.toLowerCase();
   const isTooFar = distance > 120;
+
+  if (compact) {
+    return (
+      <div 
+        onClick={onViewOnMap}
+        className="relative h-20 w-full bg-slate-950 rounded-xl border border-zinc-300/80 hover:border-amber-500 overflow-hidden shadow-2xs cursor-pointer group transition-all duration-200 select-none my-1"
+        title="Click to view interactive map directory"
+        id={`compact-map-thumb-${projectCityName}`}
+      >
+        {/* Dark Grid & Radar Sweep Backdrop */}
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center opacity-40">
+          <div className="w-[180px] h-[180px] rounded-full border border-blue-500/30 flex items-center justify-center">
+            <div className="w-[120px] h-[120px] rounded-full border border-blue-400/20 flex items-center justify-center">
+              <div className="w-[60px] h-[60px] rounded-full border border-blue-300/20"></div>
+            </div>
+          </div>
+          <div className="absolute left-0 right-0 h-[0.5px] bg-blue-500/30"></div>
+          <div className="absolute top-0 bottom-0 w-[0.5px] bg-blue-500/30"></div>
+        </div>
+
+        {/* Vector Trajectory Line between User Base and Project */}
+        <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+          <svg className="w-full h-full">
+            <line
+              x1="30%"
+              y1="50%"
+              x2="70%"
+              y2="50%"
+              stroke={isSameCity ? "#10b981" : "#f59e0b"}
+              strokeWidth="2"
+              strokeDasharray="4 3"
+              className="animate-[dash_1.5s_linear_infinite]"
+            />
+          </svg>
+        </div>
+
+        {/* User Base Location Pin (Left Side) */}
+        <div className="absolute left-[26%] top-1/2 -translate-y-1/2 flex items-center gap-1.5 z-10">
+          <div className="relative">
+            <span className="animate-ping absolute inline-flex h-3 w-3 rounded-full bg-cyan-400 opacity-75"></span>
+            <div className="w-3.5 h-3.5 rounded-full bg-cyan-400 border border-white shadow-xs"></div>
+          </div>
+          <span className="text-[9px] font-extrabold text-cyan-200 bg-slate-900/90 border border-cyan-800/80 px-1.5 py-0.5 rounded shadow-2xs uppercase tracking-tight hidden sm:inline-block">
+            {userCityName}
+          </span>
+        </div>
+
+        {/* Project Location Pin (Right Side) */}
+        <div className="absolute left-[70%] top-1/2 -translate-y-1/2 flex items-center gap-1.5 z-10">
+          <div className="relative">
+            <span className="animate-ping absolute inline-flex h-3.5 w-3.5 rounded-full bg-rose-500 opacity-75"></span>
+            <div className="w-4 h-4 rounded-full bg-rose-500 border border-white shadow-xs"></div>
+          </div>
+          <span className="text-[9px] font-extrabold text-rose-100 bg-rose-950/90 border border-rose-800/80 px-1.5 py-0.5 rounded shadow-2xs uppercase tracking-tight hidden sm:inline-block">
+            {projectCityName}
+          </span>
+        </div>
+
+        {/* Overlay Floating Badge: Distance & Compass Direction */}
+        <div className="absolute top-1.5 left-2 z-20 flex items-center gap-1 bg-slate-900/90 border border-blue-800/80 text-white px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-md">
+          <MapPin className="w-3 h-3 text-rose-400 shrink-0" />
+          <span>{projectCityName}</span>
+          <span className="text-amber-400 font-extrabold font-mono ml-0.5">
+            ({distance} mi {isSameCity ? "• Local" : `• ${directionLabel}`})
+          </span>
+        </div>
+
+        {/* Action Prompt */}
+        <div className="absolute bottom-1.5 right-2 z-20 flex items-center gap-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-2 py-0.5 rounded-lg text-[9px] uppercase tracking-wider transition shadow-sm">
+          <Compass className="w-3 h-3 text-slate-950 animate-spin-slow" />
+          <span>View Map Directory</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col border border-zinc-200/80 rounded-xl bg-white p-3.5 shadow-xs shrink-0 w-full md:w-56" id={`project-minimap-${projectCityName}`}>

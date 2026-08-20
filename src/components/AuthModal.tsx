@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { UserRole } from "../types";
-import { X, User, Lock, Mail, Phone, CreditCard, KeyRound, CheckSquare, Eye, EyeOff, ShieldCheck, FileText, CheckCircle } from "lucide-react";
+import { X, User, Lock, Mail, Phone, CreditCard, KeyRound, CheckSquare, Eye, EyeOff, ShieldCheck, FileText, CheckCircle, Save, Check } from "lucide-react";
 import { CITIES } from "../data/cities";
 
 interface AuthModalProps {
@@ -22,6 +22,21 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   const [city, setCity] = useState("Austin");
   const [state, setState] = useState("TX");
   const [zipCode, setZipCode] = useState("78701");
+  const [zipSaved, setZipSaved] = useState(false);
+
+  const handleSaveZip = () => {
+    if (!zipCode.trim()) return;
+    const foundCity = CITIES.find((c) => c.zipCode === zipCode.trim());
+    if (foundCity) {
+      setCity(foundCity.name);
+      setState(foundCity.state);
+    }
+    try {
+      localStorage.setItem("hsws_saved_zip", zipCode.trim());
+    } catch {}
+    setZipSaved(true);
+    setTimeout(() => setZipSaved(false), 3000);
+  };
   
   // Credit Card states
   const [cardNumber, setCardNumber] = useState("");
@@ -226,38 +241,69 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         <form onSubmit={handleFormSubmit} className="p-6 space-y-6">
           {/* Target Role Selector block */}
           <div className="space-y-2">
-            <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider">Are you a Homeowner or Professional Contractor?</label>
-            <div className="grid grid-cols-2 gap-2 bg-zinc-100 p-1 rounded-xl">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-zinc-400 uppercase tracking-wider">Select Account Type</label>
+              <button
+                type="button"
+                onClick={() => {
+                  setUsername("nwiller9185");
+                  setPassword("ownerpass123");
+                  setRole("owner" as UserRole);
+                }}
+                className="text-[11px] font-extrabold text-amber-700 hover:text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer"
+              >
+                👑 Auto-Fill Platform Owner Login
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-1.5 bg-zinc-100 p-1 rounded-xl">
               <button
                 type="button"
                 onClick={() => setRole("customer")}
-                className={`flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition ${
+                className={`flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-lg transition ${
                   role === "customer"
                     ? "bg-white text-zinc-900 shadow-xs"
                     : "text-zinc-500 hover:text-zinc-700"
                 }`}
                 id="select-role-customer"
               >
-                👤 Customer / Homeowner
+                👤 Homeowner
               </button>
               <button
                 type="button"
                 onClick={() => setRole("contractor")}
-                className={`flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition ${
+                className={`flex items-center justify-center gap-1.5 py-2 text-xs font-semibold rounded-lg transition ${
                   role === "contractor"
                     ? "bg-white text-zinc-900 shadow-xs"
                     : "text-zinc-500 hover:text-zinc-700"
                 }`}
                 id="select-role-contractor"
               >
-                👨‍🔧 Contractor / Worker
+                👨‍🔧 Contractor
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRole("owner" as UserRole);
+                  setUsername("nwiller9185");
+                }}
+                className={`flex items-center justify-center gap-1 py-2 text-xs font-bold rounded-lg transition ${
+                  role === "owner"
+                    ? "bg-amber-500 text-zinc-950 font-black shadow-xs"
+                    : "text-amber-800 hover:text-amber-950"
+                }`}
+                id="select-role-owner"
+              >
+                👑 Owner Suite
               </button>
             </div>
             
             <p className="text-[11px] text-zinc-500 leading-normal">
               {role === "customer" 
                 ? "Post home/business jobs for local contractors to see. Zero fees to register, browse, or post. $5.00/$20.00 project fee paid upon contract agreement."
-                : "Bid on active projects, contact local homeowners, and secure daily jobs. Membership is $20.00/month for unlimited active leads."}
+                : role === "contractor"
+                ? "Bid on active projects, contact local homeowners, and secure daily jobs. Membership is $20.00/month for unlimited active leads."
+                : "👑 Platform Creator & Owner Executive Access. Unlocks system revenue ledger, escrow overrides, user verification, and broadcast relays."}
             </p>
           </div>
 
@@ -391,16 +437,56 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-semibold text-zinc-650 mb-1">Zip Code</label>
-                  <input
-                    type="text"
-                    placeholder="78701"
-                    value={zipCode}
-                    onChange={(e) => handleZipChange(e.target.value)}
-                    required
-                    className="w-full bg-zinc-50 border border-zinc-300 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:bg-white focus:outline-hidden"
-                    id="auth-input-zip"
-                  />
+                  <label className="block text-xs font-semibold text-zinc-650 mb-1 flex items-center justify-between">
+                    <span>Zip Code</span>
+                    {zipSaved && (
+                      <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1 animate-in fade-in">
+                        <Check className="w-3 h-3" /> Zip Saved
+                      </span>
+                    )}
+                  </label>
+                  <div className="flex gap-1.5">
+                    <input
+                      type="text"
+                      placeholder="78701"
+                      value={zipCode}
+                      onChange={(e) => {
+                        handleZipChange(e.target.value);
+                        if (zipSaved) setZipSaved(false);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleSaveZip();
+                        }
+                      }}
+                      required
+                      className="flex-1 bg-zinc-50 border border-zinc-300 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-amber-500 focus:bg-white focus:outline-hidden"
+                      id="auth-input-zip"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveZip}
+                      className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer shadow-3xs shrink-0 ${
+                        zipSaved
+                          ? "bg-emerald-600 text-white border border-emerald-700"
+                          : "bg-amber-600 hover:bg-amber-700 text-white border border-amber-700"
+                      }`}
+                      id="save-auth-zip-btn"
+                      data-testid="save-auth-zip-btn"
+                      title="Save Zip Code"
+                    >
+                      {zipSaved ? (
+                        <>
+                          <Check className="w-3.5 h-3.5" /> Saved
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-3.5 h-3.5" /> Save
+                        </>
+                      )}
+                    </button>
+                  </div>
                 </div>
               </div>
 
