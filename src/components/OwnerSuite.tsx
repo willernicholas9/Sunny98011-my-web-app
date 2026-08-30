@@ -2,6 +2,8 @@ import React, { useState } from "react";
 import { Project, Bid } from "../types";
 import OutreachCampaignsHub from "./OutreachCampaignsHub";
 import AutonomousAdInstallerAgent from "./AutonomousAdInstallerAgent";
+import ProjectAnalytics from "./owner/ProjectAnalytics";
+import LeadPriorityEngine from "./owner/LeadPriorityEngine";
 import {
   ShieldCheck,
   DollarSign,
@@ -30,7 +32,12 @@ import {
   X,
   Bot,
   Megaphone,
-  LayoutDashboard
+  LayoutDashboard,
+  TrendingUp,
+  BarChart3,
+  LineChart as LineChartIcon,
+  Flame,
+  Target
 } from "lucide-react";
 
 interface OwnerSuiteProps {
@@ -56,8 +63,8 @@ export default function OwnerSuite({
   seniorMode = false,
   setSeniorMode,
 }: OwnerSuiteProps) {
-  // Owner Sub-Section State ("overview" | "ai_agent" | "outreach")
-  const [activeOwnerSection, setActiveOwnerSection] = useState<"overview" | "ai_agent" | "outreach">("overview");
+  // Owner Sub-Section State ("overview" | "analytics" | "lead_priority" | "ai_agent" | "outreach")
+  const [activeOwnerSection, setActiveOwnerSection] = useState<"overview" | "analytics" | "lead_priority" | "ai_agent" | "outreach">("overview");
   // Password Protection state
   const [ownerPassword, setOwnerPassword] = useState<string>(() => {
     try {
@@ -457,6 +464,34 @@ export default function OwnerSuite({
 
         <button
           type="button"
+          onClick={() => setActiveOwnerSection("analytics")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            activeOwnerSection === "analytics"
+              ? "bg-blue-600 text-white shadow-md font-black"
+              : "bg-blue-50 text-blue-800 hover:bg-blue-100 border border-blue-200"
+          }`}
+          id="owner-subtab-analytics"
+        >
+          <TrendingUp className="w-4 h-4" />
+          <span>📈 Project Analytics & Match Trends</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveOwnerSection("lead_priority")}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
+            activeOwnerSection === "lead_priority"
+              ? "bg-amber-600 text-white shadow-md font-black"
+              : "bg-amber-50 text-amber-900 hover:bg-amber-100 border border-amber-200"
+          }`}
+          id="owner-subtab-lead-priority"
+        >
+          <Flame className="w-4 h-4 text-amber-500" />
+          <span>🎯 Lead Priority & Ad Spend Engine</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveOwnerSection("ai_agent")}
           className={`px-4 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer ${
             activeOwnerSection === "ai_agent"
@@ -485,6 +520,29 @@ export default function OwnerSuite({
       </div>
 
       {/* Render selected owner sub-section */}
+      {activeOwnerSection === "analytics" && (
+        <ProjectAnalytics
+          projects={projects}
+          bids={bids}
+          contractorsCount={contractorsList.length}
+        />
+      )}
+
+      {activeOwnerSection === "lead_priority" && (
+        <LeadPriorityEngine
+          projects={projects}
+          bids={bids}
+          contractorsList={contractorsList}
+          onDeployAdCampaign={(campaign) => {
+            onTriggerEmailLog({
+              recipient: "ad-ops@home-service-relay.internal",
+              subject: `[Ad Blitz Live] Target: ${campaign.projectTitle} ($${campaign.suggestedBudget})`,
+              body: `Automated ad campaign dispatched to ${campaign.channel} targeting ${campaign.targetTrade} in Zip ${campaign.targetZip}. Suggested allocation: $${campaign.suggestedBudget}.`
+            });
+          }}
+        />
+      )}
+
       {activeOwnerSection === "ai_agent" && (
         <div className="space-y-4">
           <div className="bg-red-50 border border-red-200 p-4 rounded-2xl text-xs text-red-900 font-medium flex items-center gap-2">
@@ -561,6 +619,63 @@ export default function OwnerSuite({
           <p className="text-2xl font-black font-mono text-amber-600">${(monthlySubscriptionRev + totalServiceCommissions).toFixed(2)}</p>
           <p className="text-[11px] text-zinc-500 mt-1">Routing to Chase Bank N.A. (****-9185)</p>
         </div>
+      </div>
+
+      {/* Executive Intelligence Grid: Analytics & Lead Priority */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* Project Analytics Teaser Card */}
+        <div className="bg-gradient-to-r from-blue-900 via-indigo-950 to-zinc-900 text-white rounded-3xl p-6 border border-blue-700/50 shadow-md flex flex-col justify-between gap-6 relative overflow-hidden">
+          <div className="space-y-1.5 z-10">
+            <div className="inline-flex items-center gap-1.5 bg-blue-500/20 text-blue-300 border border-blue-400/30 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+              <TrendingUp className="w-3 h-3 text-blue-400" />
+              <span>Marketplace Intelligence & Match Trends</span>
+            </div>
+            <h3 className="text-lg font-black font-display tracking-tight text-white">
+              Project Analytics: Match Rates & Seasonal Inflow
+            </h3>
+            <p className="text-xs text-blue-200/80 leading-relaxed">
+              Visualize contractor bid competition per trade, 82%+ escrow match velocities, and monthly demand curves across seasons.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setActiveOwnerSection("analytics")}
+            className="bg-blue-500 hover:bg-blue-400 text-zinc-950 font-black px-5 py-2.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg flex items-center justify-center gap-2 cursor-pointer shrink-0 z-10 w-fit"
+            id="open-project-analytics-from-overview-btn"
+          >
+            <BarChart3 className="w-4 h-4 text-zinc-950" />
+            <span>Launch Project Analytics</span>
+          </button>
+        </div>
+
+        {/* Lead Priority & Ad Spend Engine Teaser Card */}
+        <div className="bg-gradient-to-r from-amber-950 via-zinc-900 to-amber-900 text-white rounded-3xl p-6 border border-amber-600/50 shadow-md flex flex-col justify-between gap-6 relative overflow-hidden">
+          <div className="space-y-1.5 z-10">
+            <div className="inline-flex items-center gap-1.5 bg-amber-500/25 text-amber-300 border border-amber-400/40 px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+              <Flame className="w-3 h-3 text-amber-400 animate-pulse" />
+              <span>Automated High-Yield Lead Scoring</span>
+            </div>
+            <h3 className="text-lg font-black font-display tracking-tight text-white">
+              Lead Priority & Targeted Ad Spend Allocation
+            </h3>
+            <p className="text-xs text-amber-200/80 leading-relaxed">
+              Identify high-budget, high-probability projects and deploy recommended ad spend ($15–$150) across Google LSA and Meta for 5.4x+ ROAS.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setActiveOwnerSection("lead_priority")}
+            className="bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-500 hover:to-amber-600 text-zinc-950 font-black px-5 py-2.5 rounded-xl text-xs uppercase tracking-wider transition shadow-lg flex items-center justify-center gap-2 cursor-pointer shrink-0 z-10 w-fit"
+            id="open-lead-priority-from-overview-btn"
+          >
+            <Target className="w-4 h-4 text-zinc-950" />
+            <span>Launch Lead Priority Engine</span>
+          </button>
+        </div>
+
       </div>
 
       {/* Main Grid: Fee Configurator & Broadcast Relays */}

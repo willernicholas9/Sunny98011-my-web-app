@@ -141,14 +141,21 @@ class AutonomousAdWorkerService {
     };
   }
 
+  private persistTimeout: any = null;
+
   private persistState() {
-    try {
-      this.state.lastActiveTimestamp = Date.now();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
-    } catch (e) {
-      console.warn("[AdWorker] Storage save error", e);
-    }
+    this.state.lastActiveTimestamp = Date.now();
     this.notify();
+
+    // Debounce actual localStorage write to prevent CPU thrashing & storage lockup
+    if (this.persistTimeout) clearTimeout(this.persistTimeout);
+    this.persistTimeout = setTimeout(() => {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(this.state));
+      } catch (e) {
+        console.warn("[AdWorker] Storage save error", e);
+      }
+    }, 500);
   }
 
   /**
@@ -330,7 +337,7 @@ class AutonomousAdWorkerService {
     if (this.liveInterval) clearInterval(this.liveInterval);
     this.liveInterval = setInterval(() => {
       this.tickLiveHeartbeat();
-    }, 4500);
+    }, 12000);
   }
 
   private stopLiveHeartbeat() {
@@ -342,6 +349,11 @@ class AutonomousAdWorkerService {
 
   private tickLiveHeartbeat() {
     if (!this.state.agentRunning) return;
+    // If no UI listeners are active, skip generating micro-logs to save memory and CPU
+    if (this.listeners.size === 0) {
+      this.state.lastActiveTimestamp = Date.now();
+      return;
+    }
 
     const zips = this.getZipList();
     const zip = zips[Math.floor(Math.random() * zips.length)] || "78701";

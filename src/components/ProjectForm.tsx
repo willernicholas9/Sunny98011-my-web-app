@@ -3,11 +3,21 @@ import { Project, CityData } from "../types";
 import { Upload, X, Info, Hammer, MapPin, DollarSign, Image as ImageIcon, Save, Check, Calculator, Sparkles } from "lucide-react";
 import { CITIES } from "../data/cities";
 import InstantQuoteCalculator from "./InstantQuoteCalculator";
+import PhotoUploadStudio, { DamageAnalysisResult } from "./PhotoUploadStudio";
 
 interface ProjectFormProps {
   onAddProject: (projectData: Omit<Project, "id" | "customerId" | "customerFirstName" | "customerLastName" | "customerPhone" | "customerAddress" | "customerEmail" | "createdAt" | "status" | "agreedByCustomer" | "agreedByContractor" | "serviceFeeCharge">) => void;
   onClose: () => void;
   currentUser?: any | null;
+  initialData?: {
+    title?: string;
+    tradeCategory?: string;
+    budget?: number;
+    description?: string;
+    city?: string;
+    state?: string;
+    zipCode?: string;
+  };
 }
 
 // Preset decorative icons/illustrations so that mock listings look beautiful
@@ -18,20 +28,21 @@ const IMAGE_PRESETS = [
   { name: "Windows / Glazing", url: "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop&q=80" },
 ];
 
-export default function ProjectForm({ onAddProject, onClose, currentUser }: ProjectFormProps) {
+export default function ProjectForm({ onAddProject, onClose, currentUser, initialData }: ProjectFormProps) {
   const [showCalculatorWidget, setShowCalculatorWidget] = useState(false);
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [budget, setBudget] = useState("");
+  const [title, setTitle] = useState(initialData?.title || "");
+  const [description, setDescription] = useState(initialData?.description || "");
+  const [budget, setBudget] = useState(initialData?.budget ? String(initialData.budget) : "");
   const [type, setType] = useState<"home" | "business">("home");
   const [address, setAddress] = useState("");
-  const [zipCode, setZipCode] = useState("");
+  const [zipCode, setZipCode] = useState(initialData?.zipCode || "");
   const [zipSaved, setZipSaved] = useState(false);
-  const [city, setCity] = useState("Austin");
-  const [state, setState] = useState("TX");
+  const [city, setCity] = useState(initialData?.city || "Austin");
+  const [state, setState] = useState(initialData?.state || "TX");
   const [autoFillFromProfile, setAutoFillFromProfile] = useState(false);
   const [isEmergency, setIsEmergency] = useState(false);
   const [emergencyCategory, setEmergencyCategory] = useState<"Plumbing Leak" | "Power Outage" | "Roof/Storm Damage" | "HVAC/Heating" | "Locksmith" | "Other">("Plumbing Leak");
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleSaveZip = () => {
     if (!zipCode.trim()) return;
@@ -47,10 +58,10 @@ export default function ProjectForm({ onAddProject, onClose, currentUser }: Proj
     setTimeout(() => setZipSaved(false), 3000);
   };
   
-  // Pictures control
+  // Pictures & AI Damage Analysis Control
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
-  const [dragActive, setDragActive] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [photoTags, setPhotoTags] = useState<Record<string, string>>({});
+  const [damageScanAnalysis, setDamageScanAnalysis] = useState<DamageAnalysisResult | undefined>(undefined);
 
   const handleAutoFillToggle = (checked: boolean) => {
     setAutoFillFromProfile(checked);
@@ -121,60 +132,16 @@ export default function ProjectForm({ onAddProject, onClose, currentUser }: Proj
     }
   };
 
-  // Convert uploaded image file to object URL/base64 representation
-  const handleFiles = (files: FileList) => {
-    const newImages: string[] = [];
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      if (file.type.startsWith("image/")) {
-        const fileUrl = URL.createObjectURL(file);
-        newImages.push(fileUrl);
-      }
-    }
-    setUploadedImages((prev) => [...prev, ...newImages]);
-  };
-
-  const onDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragActive(true);
-  };
-
-  const onDragLeave = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragActive(false);
-  };
-
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragActive(false);
-    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      handleFiles(e.dataTransfer.files);
-    }
-  };
-
-  const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      handleFiles(e.target.files);
-    }
-  };
-
-  const removeUploadedImage = (index: number) => {
-    setUploadedImages((prev) => prev.filter((_, idx) => idx !== index));
-  };
-
-  const selectPresetImage = (url: string) => {
-    if (uploadedImages.includes(url)) {
-      setUploadedImages((prev) => prev.filter((item) => item !== url));
-    } else {
-      setUploadedImages((prev) => [...prev, url]);
-    }
-  };
-
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
+    if (!title.trim()) {
+      setFormError("Please enter a project title.");
+      return;
+    }
     const budgetNum = parseFloat(budget);
     if (isNaN(budgetNum) || budgetNum <= 0) {
-      alert("Please specify a valid budget greater than zero.");
+      setFormError("Please specify a valid budget greater than zero.");
       return;
     }
 
@@ -192,6 +159,8 @@ export default function ProjectForm({ onAddProject, onClose, currentUser }: Proj
       state,
       zipCode,
       images: finalImages,
+      photoTags: Object.keys(photoTags).length > 0 ? photoTags : undefined,
+      damageScanAnalysis,
       isEmergency,
       emergencyCategory: isEmergency ? emergencyCategory : undefined,
     });
@@ -479,79 +448,25 @@ export default function ProjectForm({ onAddProject, onClose, currentUser }: Proj
             />
           </div>
 
-          {/* Area to Post Pictures: Drag/Drop and Manual select file inputs */}
-          <div className="space-y-3">
-            <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider">Area to Post Pics / Upload Files</label>
-            
-            <div
-              onDragOver={onDragOver}
-              onDragLeave={onDragLeave}
-              onDrop={onDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition flex flex-col items-center justify-center ${
-                dragActive
-                  ? "border-amber-600 bg-amber-50/30"
-                  : "border-zinc-300 hover:border-amber-500 bg-zinc-50/30 hover:bg-zinc-50/70"
-              }`}
-              id="drag-drop-zone"
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={onFileInputChange}
-                multiple
-                accept="image/*"
-                className="hidden"
-                id="form-file-input"
-              />
-              <Upload className="w-8 h-8 text-zinc-400 mb-2" />
-              <p className="text-xs font-bold text-zinc-700">Drag & drop your files here, or <span className="text-amber-600 underline">browse locally</span></p>
-              <p className="text-[10px] text-zinc-400 mt-1">Supports PNG, JPG, JPEG (Max 3 files, 15MB each)</p>
-            </div>
-
-            {/* Photo preset suggestions for rapid use */}
-            <div>
-              <p className="text-[10px] text-zinc-400 font-semibold uppercase tracking-wider mb-1.5">Or choose from visual presets:</p>
-              <div className="flex flex-wrap gap-2">
-                {IMAGE_PRESETS.map((p) => {
-                  const isSelected = uploadedImages.includes(p.url);
-                  return (
-                    <button
-                      key={p.name}
-                      type="button"
-                      onClick={() => selectPresetImage(p.url)}
-                      className={`text-[11px] font-semibold px-2.5 py-1.5 rounded-xl border flex items-center gap-1 transition ${
-                        isSelected
-                          ? "bg-amber-600 text-white border-amber-600 shadow-xs"
-                          : "bg-white text-zinc-600 border-zinc-200 hover:bg-zinc-50"
-                      }`}
-                    >
-                      <ImageIcon className="w-3.5 h-3.5" />
-                      {p.name}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Selected Images List */}
-            {uploadedImages.length > 0 && (
-              <div className="grid grid-cols-4 gap-2 pt-2">
-                {uploadedImages.map((img, idx) => (
-                  <div key={idx} className="relative group aspect-square rounded-xl overflow-hidden border border-zinc-200 bg-zinc-100">
-                    <img src={img} alt="Job upload preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    <button
-                      type="button"
-                      onClick={() => removeUploadedImage(idx)}
-                      className="absolute top-1 right-1 bg-black/60 hover:bg-black/80 rounded-full p-1 text-white opacity-90 transition"
-                      title="Remove image"
-                    >
-                      <X className="w-3 h-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
+          {/* Area to Post Pictures: Advanced PhotoUploadStudio with AI Damage Scan & Tagging */}
+          <div className="space-y-2">
+            <PhotoUploadStudio
+              initialPhotos={uploadedImages}
+              photoTags={photoTags}
+              userRole="customer"
+              title="Project Photo, Blueprint & Damage Uploader"
+              subtitle="Upload damage or project photos for free AI scope calculations & instant contractor bidding."
+              onPhotosChange={(newPhotos, newTags) => {
+                setUploadedImages(newPhotos);
+                setPhotoTags(newTags);
+              }}
+              onAnalysisComplete={(analysis) => {
+                setDamageScanAnalysis(analysis);
+                if (!description) {
+                  setDescription(`AI Visual Diagnosis: ${analysis.summary}\nDetected: ${analysis.detectedIssues.join(", ")}`);
+                }
+              }}
+            />
           </div>
 
           {/* Service Fee notice */}
@@ -569,6 +484,13 @@ export default function ProjectForm({ onAddProject, onClose, currentUser }: Proj
               </ul>
             </div>
           </div>
+
+          {formError && (
+            <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs px-3.5 py-2.5 rounded-xl font-bold flex items-center gap-2">
+              <span>⚠️</span>
+              <span>{formError}</span>
+            </div>
+          )}
 
           <div className="flex justify-end gap-3 pt-4 border-t border-zinc-150">
             <button

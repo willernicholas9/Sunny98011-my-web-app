@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { ContractorUser, Review } from "../types";
+import { ContractorUser, Review, BeforeAfterPair } from "../types";
 import { Star, ShieldAlert, BadgeCheck, MessageSquare, Plus, Check, FileDown, Printer, Download, X, Award, ShieldCheck, FileText, CheckCircle2, Sparkles } from "lucide-react";
+import ContractorPortfolioGallery from "./ContractorPortfolioGallery";
 
 interface ContractorProfileCardProps {
   key?: string | number;
@@ -9,18 +10,21 @@ interface ContractorProfileCardProps {
   onAddReview: (contractorId: string, rating: number, comment: string) => void;
   onToggleAvailability?: (contractorId: string) => void;
   onStartChat?: (recipientId: string, recipientName: string, recipientRole: "customer" | "contractor") => void;
+  onUpdatePortfolio?: (contractorId: string, beforeAfterPairs: BeforeAfterPair[], portfolioPhotos: string[]) => void;
 }
 
-export default function ContractorProfileCard({
+function ContractorProfileCardComponent({
   contractor,
   currentUser,
   onAddReview,
   onToggleAvailability,
   onStartChat,
+  onUpdatePortfolio,
 }: ContractorProfileCardProps) {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [comment, setComment] = useState("");
   const [rating, setRating] = useState(5);
+  const [reviewError, setReviewError] = useState<string | null>(null);
   const [showExportModal, setShowExportModal] = useState(false);
 
   const averageRating = contractor.reviews.length > 0
@@ -36,17 +40,19 @@ export default function ContractorProfileCard({
 
   const handleReviewSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setReviewError(null);
     if (!comment.trim()) {
-      alert("Please enter a review comment.");
+      setReviewError("Please enter a review comment.");
       return;
     }
     // Only premium authenticated users or generic customers can submit reviews
     if (!currentUser) {
-      alert("Please register or log in to write a review.");
+      setReviewError("Please register or log in to write a review.");
       return;
     }
     onAddReview(contractor.id, rating, comment);
     setComment("");
+    setReviewError(null);
     setShowReviewForm(false);
   };
 
@@ -442,6 +448,24 @@ export default function ContractorProfileCard({
           </div>
         </div>
 
+        {/* Verified Portfolio & Before/After Job Photo Showcase */}
+        <div className="mt-4 pt-3.5 border-t border-zinc-100">
+          <ContractorPortfolioGallery
+            contractor={contractor}
+            currentUser={currentUser}
+            isOwner={currentUser && currentUser.id === contractor.id}
+            onUpdatePortfolio={(updatedContractor: ContractorUser) => {
+              if (onUpdatePortfolio) {
+                onUpdatePortfolio(
+                  contractor.id,
+                  updatedContractor.beforeAfterPairs || [],
+                  updatedContractor.portfolioPhotos || []
+                );
+              }
+            }}
+          />
+        </div>
+
         {/* Insurance Statement Upload */}
         <div className="mt-4 pt-3.5 border-t border-zinc-100">
           <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-1">Insurance & Bonding File</div>
@@ -587,6 +611,12 @@ export default function ContractorProfileCard({
               className="w-full bg-white border border-zinc-200 text-xs p-2 rounded-lg h-16 focus:ring-1 focus:ring-blue-500 focus:outline-hidden"
               required
             />
+
+            {reviewError && (
+              <div className="bg-rose-50 border border-rose-200 text-rose-700 text-xs px-2.5 py-1.5 rounded-lg font-medium">
+                ⚠️ {reviewError}
+              </div>
+            )}
 
             <div className="flex justify-end gap-1.5">
               <button
@@ -789,4 +819,6 @@ export default function ContractorProfileCard({
     </div>
   );
 }
+
+export default React.memo(ContractorProfileCardComponent);
 

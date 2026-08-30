@@ -87,6 +87,11 @@ export const SpiralTowerCanvas: React.FC<SpiralTowerCanvasProps> = ({
     ];
 
     const render = () => {
+      if (document.hidden) {
+        animationFrameId = requestAnimationFrame(render);
+        return;
+      }
+
       const width = canvas.width;
       const height = canvas.height;
       if (width === 0 || height === 0) {

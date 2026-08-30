@@ -84,6 +84,9 @@ class RealtimeSyncManager {
     }
   }
 
+  private reconnectAttempts: number = 0;
+  private processedEventIds: Set<string> = new Set();
+
   // Initialize and connect to SSE stream
   public connect() {
     if (typeof window === "undefined" || this.eventSource) return;
@@ -93,12 +96,18 @@ class RealtimeSyncManager {
 
     const connectSSE = () => {
       try {
+        if (this.eventSource) {
+          this.eventSource.close();
+          this.eventSource = null;
+        }
+
         const streamUrl = `/api/sync/stream?clientType=${this.clientType}&clientId=${this.clientId}`;
         this.eventSource = new EventSource(streamUrl);
 
         this.eventSource.onopen = () => {
           this.isConnected = true;
           this.isConnecting = false;
+          this.reconnectAttempts = 0;
           this.lastSyncTime = new Date().toISOString();
           this.notifyStatus();
         };
@@ -124,6 +133,16 @@ class RealtimeSyncManager {
               return;
             }
 
+            // Deduplicate incoming events
+            if (data.event?.id) {
+              if (this.processedEventIds.has(data.event.id)) return;
+              this.processedEventIds.add(data.event.id);
+              if (this.processedEventIds.size > 100) {
+                const arr = Array.from(this.processedEventIds);
+                this.processedEventIds = new Set(arr.slice(50));
+              }
+            }
+
             // Standard Update or Broadcast
             this.handleIncomingSync(data);
           } catch (err) {
@@ -140,12 +159,15 @@ class RealtimeSyncManager {
             this.eventSource = null;
           }
 
-          // Auto reconnect after 3s
+          // Exponential backoff reconnect: 3s, 6s, 12s, max 30s
+          this.reconnectAttempts++;
+          const delay = Math.min(30000, 3000 * Math.pow(1.5, Math.min(this.reconnectAttempts - 1, 6)));
+
           if (!this.reconnectTimer) {
             this.reconnectTimer = setTimeout(() => {
               this.reconnectTimer = null;
               connectSSE();
-            }, 3000);
+            }, delay);
           }
         };
       } catch (err) {

@@ -99,5 +99,5 @@ export interface GameSettings {
   voicesEnabled: boolean;
   speedMultiplier: number;
   gameMode?: "classic" | "daily_challenge" | "speedrun";
-  musicTrack?: "jump_around" | "ice_ice_baby" | "rotation";
+  musicTrack?: "jump_around" | "ice_ice_baby" | "rotation" | "cyber_overdrive";
 }

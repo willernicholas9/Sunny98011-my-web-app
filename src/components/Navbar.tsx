@@ -3,7 +3,7 @@ import { Hammer, CircleAlert, Mail, LogOut, LogIn, HardHat, Bot, Wifi, WifiOff, 
 import { persistenceCheck } from "../services/persistenceCheck";
 import { PersistenceState } from "../types/persistenceTypes";
 
-export type TabType = "spiral_game" | "projects" | "contractors" | "my_dashboard" | "stripe_hub" | "outreach" | "ai_agent" | "owner_suite" | "monetize";
+export type TabType = "spiral_game" | "projects" | "contractors" | "rebates" | "my_dashboard" | "stripe_hub" | "outreach" | "ai_agent" | "owner_suite" | "monetize";
 
 interface NavbarProps {
   currentUser: any;
@@ -77,6 +77,18 @@ export default function Navbar({
               id="nav-tab-contractors"
             >
               👨‍🔧 Contractors Directory
+            </button>
+            <button
+              onClick={() => onChangeTab("rebates")}
+              className={`px-4 py-2 text-xs font-bold rounded-xl transition duration-150 flex items-center gap-1 ${
+                activeTab === "rebates"
+                  ? "bg-emerald-100 text-emerald-950 shadow-3xs font-extrabold border border-emerald-300"
+                  : "text-zinc-650 hover:bg-zinc-50 hover:text-zinc-900"
+              }`}
+              id="nav-tab-rebates"
+              title="Material Supply Discounts, Wholesale Partners & Government Rebates"
+            >
+              <span>🌿 Material & Rebates</span>
             </button>
             <button
               onClick={() => onChangeTab("my_dashboard")}
@@ -282,6 +294,14 @@ export default function Navbar({
             }`}
           >
             👨‍🔧 Contractors
+          </button>
+          <button
+            onClick={() => onChangeTab("rebates")}
+            className={`px-2.5 py-1 text-[10px] font-bold rounded-lg transition ${
+              activeTab === "rebates" ? "bg-emerald-100 text-emerald-950 font-extrabold border border-emerald-300" : "text-zinc-600"
+            }`}
+          >
+            🌿 Rebates
           </button>
           <button
             onClick={() => onChangeTab("my_dashboard")}

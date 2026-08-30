@@ -330,7 +330,7 @@ export const SpiralFrenzyGame: React.FC = () => {
 
                 // Make decision if not already taking action
                 if (action === "running" && Math.random() < accuracyProb) {
-                  if (obs.type === "low_hurdle" && action !== "jumping") {
+                  if (obs.type === "low_hurdle") {
                     if (jumpStamina >= 34) {
                       action = "jumping";
                       actionTimer = 22;
@@ -341,7 +341,7 @@ export const SpiralFrenzyGame: React.FC = () => {
                       speechBubbleTimer = 25;
                       audioEngine.playExhaustedSound(p.slotIndex);
                     }
-                  } else if (obs.type === "high_laser" && action !== "ducking") {
+                  } else if (obs.type === "high_laser") {
                     action = "ducking";
                     actionTimer = 22;
                     audioEngine.playDuckSound(p.slotIndex);
@@ -657,7 +657,7 @@ export const SpiralFrenzyGame: React.FC = () => {
             type="button"
             onClick={() => {
               const current = settings.musicTrack || "jump_around";
-              const next =
+              const next: "jump_around" | "ice_ice_baby" | "rotation" | "cyber_overdrive" =
                 current === "jump_around"
                   ? "ice_ice_baby"
                   : current === "ice_ice_baby"
@@ -665,7 +665,7 @@ export const SpiralFrenzyGame: React.FC = () => {
                   : current === "cyber_overdrive"
                   ? "rotation"
                   : "jump_around";
-              const updated = { ...settings, musicTrack: next };
+              const updated: GameSettings = { ...settings, musicTrack: next };
               setSettings(updated);
               audioEngine.setMusicTrack(next);
             }}

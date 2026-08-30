@@ -9,6 +9,7 @@ export type QueuedUpdateType =
   | "project_image_update"
   | "review_submission"
   | "contractor_availability"
+  | "contractor_portfolio_update"
   | "custom_update";
 
 export interface QueuedUpdate {

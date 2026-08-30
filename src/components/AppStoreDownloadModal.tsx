@@ -171,23 +171,23 @@ export default function AppStoreDownloadModal({
         className="bg-white max-w-3xl w-full rounded-2xl sm:rounded-3xl border border-zinc-200 shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in zoom-in-95 duration-150"
         id="apple-appstore-modal-container"
       >
-        {/* Header with Apple Branding */}
+        {/* Header with Apple & Universal Branding */}
         <div className="p-4 sm:p-5 bg-gradient-to-r from-zinc-950 via-slate-900 to-zinc-900 text-white border-b border-zinc-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-2xl bg-white/10 border border-white/20 flex items-center justify-center text-white shadow-inner">
               <Apple className="w-6 h-6 text-white" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h3 className="font-display font-black text-sm sm:text-base tracking-tight text-white">
-                  Download on Apple App Store & iOS
+                  Universal 1-Click Access & Mobile App
                 </h3>
-                <span className="bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
-                  iOS 16+ & PWA
+                <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                  All iOS & Android Devices (1-Click Web)
                 </span>
               </div>
               <p className="text-[11px] text-zinc-400">
-                Install as a standalone native iOS application or download the Xcode App Store deployment bundle
+                Runs instantly in your web browser with 1 click on any device, or install directly to your home screen
               </p>
             </div>
           </div>
@@ -214,7 +214,7 @@ export default function AppStoreDownloadModal({
             id="tab-ios-instant-install"
           >
             <Smartphone className="w-4 h-4 text-amber-600" />
-            <span>1. Instant iOS App (1-Tap Install)</span>
+            <span>1. Instant 1-Click Mobile Access</span>
           </button>
           
           <button
@@ -228,7 +228,7 @@ export default function AppStoreDownloadModal({
             id="tab-appstore-preview"
           >
             <Apple className="w-4 h-4 text-zinc-900" />
-            <span>2. App Store Listing Preview</span>
+            <span>2. App Store & Native Details</span>
           </button>
 
           <button
@@ -258,10 +258,10 @@ export default function AppStoreDownloadModal({
                 </div>
                 <div className="space-y-1">
                   <h4 className="font-display font-black text-sm sm:text-base text-zinc-900">
-                    Direct iOS Standalone App Installation
+                    Universal 1-Click Browser & Mobile Access
                   </h4>
                   <p className="text-xs text-zinc-600 leading-relaxed">
-                    Hot Spot Workshop is fully engineered with Apple Mobile Web App standards and Progressive Web App specifications. You can install it directly onto your iPhone or iPad home screen with zero App Store download wait times or storage bottlenecks.
+                    Hot Spot Workshop works on <strong>100% of devices</strong> — any iPhone, iPad, Android, Mac, or Windows computer. No App Store download, iOS update, or software installation is required. You can also bookmark or pin it to your Home Screen in 1 tap.
                   </p>
                 </div>
               </div>

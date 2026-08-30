@@ -13,6 +13,7 @@ interface OutreachCampaignsHubProps {
   setSeniorMode: (enabled: boolean) => void;
   appUrl?: string;
   onSendEmailCampaign?: (subject: string, body: string) => void;
+  onNavigateToAiAgent?: () => void;
 }
 
 export default function OutreachCampaignsHub({
@@ -21,7 +22,8 @@ export default function OutreachCampaignsHub({
   seniorMode,
   setSeniorMode,
   appUrl = window.location.origin,
-  onSendEmailCampaign
+  onSendEmailCampaign,
+  onNavigateToAiAgent
 }: OutreachCampaignsHubProps) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedFb, setCopiedFb] = useState(false);
@@ -347,6 +349,30 @@ export default function OutreachCampaignsHub({
             {/* Facebook Panel */}
             {selectedTargetChannel === "facebook" && (
               <div className="space-y-4 animate-in fade-in duration-200">
+                
+                {/* Official Hot Spot Work Shop Facebook Page Promotion */}
+                <div className="p-4 bg-gradient-to-r from-blue-900 via-[#1877F2] to-blue-800 rounded-2xl text-white flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md">
+                  <div>
+                    <span className="text-[10px] font-black uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-full text-white inline-block mb-1">
+                      Official Page & AI Poster
+                    </span>
+                    <h3 className="text-sm font-black">HOT SPOT WORK SHOP on Facebook</h3>
+                    <p className="text-[11px] text-blue-100 font-medium">
+                      Our autonomous AI Agent posts daily helpful home repair tips & drives contractor leads.
+                    </p>
+                  </div>
+                  {onNavigateToAiAgent && (
+                    <button
+                      type="button"
+                      onClick={onNavigateToAiAgent}
+                      className="px-3.5 py-2 bg-amber-400 hover:bg-amber-300 text-zinc-950 font-black text-xs rounded-xl transition shadow-xs flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 text-zinc-950" />
+                      <span>Open AI Page Manager</span>
+                    </button>
+                  )}
+                </div>
+
                 <div className="space-y-1 bg-blue-50/50 p-4 rounded-2xl border border-blue-100">
                   <span className="text-[10px] font-black text-blue-800 uppercase tracking-wide block">💡 Why Facebook is Key</span>
                   <p className="text-xs text-blue-950 leading-relaxed">

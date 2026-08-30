@@ -1,11 +1,13 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { UserRole, Project, Bid, ContractorUser, CustomerUser, EmailLog, CityData, TRADE_OPTIONS, PrivateChatMessage } from "./types";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import SafeStorage from "./utils/browserCompat";
+import { UserRole, Project, Bid, ContractorUser, CustomerUser, EmailLog, CityData, TRADE_OPTIONS, PrivateChatMessage, BeforeAfterPair } from "./types";
 import { CITIES, getDistance } from "./data/cities";
 import { INITIAL_PROJECTS, INITIAL_CONTRACTORS, INITIAL_CUSTOMERS, INITIAL_BIDS, OWNER_USER } from "./data/mockData";
 import Navbar, { TabType } from "./components/Navbar";
 import ProjectCard from "./components/ProjectCard";
 import ContractorProfileCard from "./components/ContractorProfileCard";
 import ProjectForm from "./components/ProjectForm";
+import MaterialPartnerRebateHub from "./components/MaterialPartnerRebateHub";
 import AuthModal from "./components/AuthModal";
 import EmailSimulator from "./components/EmailSimulator";
 import DashboardStats from "./components/DashboardStats";
@@ -25,7 +27,24 @@ import PersistenceCheckToast from "./components/PersistenceCheckToast";
 import { persistenceCheck } from "./services/persistenceCheck";
 import RealtimeSyncBar from "./components/RealtimeSyncBar";
 import { realtimeSync } from "./services/realtimeSync";
-import { MapPin, Search, Mail, HelpCircle, HardHat, Hammer, Sparkles, Plus, AlertCircle, RefreshCw, CheckCircle2, DollarSign, ArrowRight, ShieldCheck, Star, MessageSquare, Compass, Crown, LayoutGrid, List, Calculator, Calendar as CalendarIcon, Apple, Smartphone, Download } from "lucide-react";
+import LiveMarketplaceTicker from "./components/LiveMarketplaceTicker";
+import InstantRepairPricingWidget from "./components/InstantRepairPricingWidget";
+import ContractorProModal from "./components/ContractorProModal";
+import BidOpportunityRadar from "./components/project-board/BidOpportunityRadar";
+import ProjectOpportunityTable from "./components/project-board/ProjectOpportunityTable";
+import EmergencyDispatchModal from "./components/EmergencyDispatchModal";
+import BeforeAfterShowcaseModal from "./components/BeforeAfterShowcaseModal";
+import InvoiceEstimateGeneratorModal from "./components/InvoiceEstimateGeneratorModal";
+import MaterialAndPermitEstimatorModal from "./components/MaterialAndPermitEstimatorModal";
+import SubcontractorCrewBoardModal from "./components/SubcontractorCrewBoardModal";
+import ActiveTradesInsights from "./components/ActiveTradesInsights";
+import MobileBottomNav from "./components/MobileBottomNav";
+import HomeFocusSectionSelector, { HomeFocusMode } from "./components/HomeFocusSectionSelector";
+import QuickJobPostTemplateBar from "./components/QuickJobPostTemplateBar";
+import MonetizationQuickCheckoutModal, { MonetizationProductKind } from "./components/MonetizationQuickCheckoutModal";
+import { MapPin, Search, Mail, HelpCircle, HardHat, Hammer, Sparkles, Plus, AlertCircle, RefreshCw, CheckCircle2, DollarSign, ArrowRight, ShieldCheck, Star, MessageSquare, Compass, Crown, LayoutGrid, List, Calculator, Calendar as CalendarIcon, Apple, Smartphone, Download, Zap, Flame, Shield, TrendingUp, Clock, Phone } from "lucide-react";
+
+const EMPTY_BIDS: Bid[] = [];
 
 export default function App() {
   // --- Persistent State Initialization ---
@@ -122,17 +141,44 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedTradeFilter, setSelectedTradeFilter] = useState("");
   const [availableOnlyFilter, setAvailableOnlyFilter] = useState(false);
-  const [jobsLayoutMode, setJobsLayoutMode] = useState<"grid" | "list" | "calendar">("grid");
+  const [jobsLayoutMode, setJobsLayoutMode] = useState<"grid" | "list" | "table" | "calendar">("grid");
+  const [quickFilterMode, setQuickFilterMode] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<string>("least_bids");
+  const [showEstimatorWidget, setShowEstimatorWidget] = useState(false);
+  const [homeFocusMode, setHomeFocusMode] = useState<HomeFocusMode>("feed");
+  const [monetizationModalState, setMonetizationModalState] = useState<{
+    isOpen: boolean;
+    kind: MonetizationProductKind;
+    targetProject?: Project | null;
+  }>({
+    isOpen: false,
+    kind: "contractor_pro",
+    targetProject: null,
+  });
+  const [quickToastMessage, setQuickToastMessage] = useState<string | null>(null);
 
   // Modals Controller
   const [showProjectModal, setShowProjectModal] = useState(false);
+  const [initialProjectFormData, setInitialProjectFormData] = useState<any>(null);
+  const [showContractorProModal, setShowContractorProModal] = useState(false);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [showEmailTracker, setShowEmailTracker] = useState(false);
   const [showMapsDirectory, setShowMapsDirectory] = useState(false);
   const [selectedMapProjectId, setSelectedMapProjectId] = useState<string | null>(null);
   const [showQuoteCalculatorModal, setShowQuoteCalculatorModal] = useState(false);
   const [showAppStoreModal, setShowAppStoreModal] = useState(false);
-  const [dismissedAppStoreBanner, setDismissedAppStoreBanner] = useState(false);
+  const [showEmergencyDispatchModal, setShowEmergencyDispatchModal] = useState(false);
+  const [showGlobalBeforeAfterModal, setShowGlobalBeforeAfterModal] = useState(false);
+  const [showGlobalInvoiceModal, setShowGlobalInvoiceModal] = useState(false);
+  const [showGlobalPermitModal, setShowGlobalPermitModal] = useState(false);
+  const [showGlobalCrewBoardModal, setShowGlobalCrewBoardModal] = useState(false);
+  const [dismissedAppStoreBanner, setDismissedAppStoreBanner] = useState(() => {
+    try {
+      return SafeStorage.getItem("hsws_dismiss_universal_banner") === "true";
+    } catch {
+      return false;
+    }
+  });
 
   // Private Chat States
   const [isChatOpen, setIsChatOpen] = useState(false);
@@ -343,10 +389,87 @@ export default function App() {
     };
   }, []);
 
-  // Web Audio chime generator (runs completely local & offline)
+  // Deep-Link & QR Code scan auto-focus handler & Universal URL parameter routing
+  const hasHandledDeepLinkRef = useRef(false);
+  useEffect(() => {
+    if (hasHandledDeepLinkRef.current) return;
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const tabParam = urlParams.get("tab") as TabType | null;
+      const actionParam = urlParams.get("action");
+      const projectIdFromUrl = urlParams.get("project");
+      const installParam = urlParams.get("install");
+      const hash = window.location.hash;
+      const targetId = projectIdFromUrl || (hash && hash.startsWith("#project-card-") ? hash.replace("#project-card-", "") : null);
+
+      if (tabParam && ["projects", "contractors", "rebates", "my_dashboard", "stripe_hub", "outreach", "ai_agent", "owner_suite", "monetize", "spiral_game"].includes(tabParam)) {
+        setActiveTab(tabParam);
+      }
+
+      if (actionParam === "new_project" || actionParam === "post_job") {
+        setShowProjectModal(true);
+      }
+
+      if (installParam === "true" || installParam === "app") {
+        setShowAppStoreModal(true);
+      }
+
+      if (targetId) {
+        hasHandledDeepLinkRef.current = true;
+        // Ensure projects tab and feed focus are selected
+        setActiveTab("projects");
+        setHomeFocusMode("feed");
+        // Expand radius if needed so the item isn't hidden
+        setRadiusLimit(120);
+        setQuickFilterMode("all");
+        setSelectedTradeFilter("");
+        setSearchTerm("");
+
+        // Scroll to card after render
+        setTimeout(() => {
+          const el = document.getElementById(`project-card-${targetId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: "smooth", block: "center" });
+            el.classList.add("ring-4", "ring-amber-500", "ring-offset-2");
+            setTimeout(() => {
+              el.classList.remove("ring-4", "ring-amber-500", "ring-offset-2");
+            }, 3000);
+          }
+
+          if (actionParam === "bid" || actionParam === "quick_bid" || urlParams.get("bid") === "true") {
+            setTimeout(() => {
+              const bidBtn = document.getElementById(`quick-bid-btn-${targetId}`);
+              if (bidBtn) {
+                (bidBtn as HTMLButtonElement).click();
+              }
+            }, 300);
+          }
+        }, 600);
+      }
+    } catch (e) {
+      console.warn("Universal URL parameter auto-routing error", e);
+    }
+  }, []);
+
+
+  // Web Audio chime generator (runs completely local & offline with shared context)
+  const sharedAudioCtxRef = useRef<AudioContext | null>(null);
+
   const playNotificationSound = () => {
     try {
-      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (!AudioCtxClass) return;
+
+      if (!sharedAudioCtxRef.current || sharedAudioCtxRef.current.state === "closed") {
+        sharedAudioCtxRef.current = new AudioCtxClass();
+      }
+
+      const audioCtx = sharedAudioCtxRef.current;
+      if (audioCtx.state === "suspended") {
+        audioCtx.resume().catch(() => {});
+      }
+
+      const now = audioCtx.currentTime;
       const oscillator = audioCtx.createOscillator();
       const gainNode = audioCtx.createGain();
       
@@ -355,16 +478,16 @@ export default function App() {
       
       oscillator.type = "sine";
       // E6 to G6 high chime sound
-      oscillator.frequency.setValueAtTime(1318.51, audioCtx.currentTime); // E6
-      oscillator.frequency.setValueAtTime(1567.98, audioCtx.currentTime + 0.1); // G6
+      oscillator.frequency.setValueAtTime(1318.51, now); // E6
+      oscillator.frequency.setValueAtTime(1567.98, now + 0.1); // G6
       
-      gainNode.gain.setValueAtTime(0.08, audioCtx.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.35);
+      gainNode.gain.setValueAtTime(0.08, now);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
       
-      oscillator.start();
-      oscillator.stop(audioCtx.currentTime + 0.35);
+      oscillator.start(now);
+      oscillator.stop(now + 0.35);
     } catch (e) {
-      console.warn("Web Audio API was blocked or unsupported.", e);
+      console.warn("Web Audio API notification was blocked or unsupported.", e);
     }
   };
 
@@ -1095,6 +1218,53 @@ export default function App() {
     });
   };
 
+  // --- Update Contractor Portfolio & Before/After Showcase ---
+  const handleUpdateContractorPortfolio = (contractorId: string, beforeAfterPairs: BeforeAfterPair[], portfolioPhotos: string[]) => {
+    setContractors((prev) => {
+      const next = prev.map((c) =>
+        c.id === contractorId
+          ? {
+              ...c,
+              beforeAfterPairs,
+              portfolioPhotos,
+              completedProjectsCount: Math.max(c.completedProjectsCount || 0, beforeAfterPairs.length),
+            }
+          : c
+      );
+      try {
+        localStorage.setItem("hsws_contractors", JSON.stringify(next));
+      } catch (e) {
+        console.error("Failed to save contractors portfolio", e);
+      }
+      realtimeSync.publishUpdate("contractors", next, "batch", `Contractor ${contractorId} updated verified portfolio`);
+      return next;
+    });
+
+    if (currentUser && currentUser.id === contractorId) {
+      setCurrentUser((prev: any) => {
+        const updated = {
+          ...prev,
+          beforeAfterPairs,
+          portfolioPhotos,
+          completedProjectsCount: Math.max(prev.completedProjectsCount || 0, beforeAfterPairs.length),
+        };
+        try {
+          localStorage.setItem("hsws_currentUser", JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+    }
+
+    if (!persistenceCheck.isOnline()) {
+      persistenceCheck.queueUpdate(
+        "contractor_portfolio_update",
+        `Updated Showcase Portfolio`,
+        { contractorId, pairsCount: beforeAfterPairs.length, photosCount: portfolioPhotos.length },
+        `Verified Before/After Cases: ${beforeAfterPairs.length} • Photos: ${portfolioPhotos.length}`
+      );
+    }
+  };
+
   // --- Trigger Launch Special Promo: Share with a Friend ---
   const handleShareWithFriend = () => {
     if (!currentUser) return;
@@ -1192,36 +1362,112 @@ export default function App() {
     setIsChatOpen(true);
   };
 
+  // --- Fast Lookup Indexes for Performance & Zero-Lag Filtering ---
+  const cityMap = useMemo(() => {
+    const map = new Map<string, CityData>();
+    for (const c of allCities) {
+      map.set(c.name.toLowerCase(), c);
+    }
+    return map;
+  }, [allCities]);
+
+  // Indexed Bids Map for instant O(1) project bid lookups & stable array references
+  const bidsByProjectId = useMemo(() => {
+    const map = new Map<string, Bid[]>();
+    for (const b of bids) {
+      const list = map.get(b.projectId);
+      if (list) {
+        list.push(b);
+      } else {
+        map.set(b.projectId, [b]);
+      }
+    }
+    return map;
+  }, [bids]);
+
+  // Distance cache to avoid recalculating trigonometry across all projects repeatedly
+  const projectDistanceMap = useMemo(() => {
+    const map = new Map<string, number>();
+    const defaultCity = allCities[0] || { lat: 30.2672, lng: -97.7431 };
+    for (const project of projects) {
+      const pCity = cityMap.get(project.city.toLowerCase()) || defaultCity;
+      const dist = getDistance(activeCityData.lat, activeCityData.lng, pCity.lat, pCity.lng);
+      map.set(project.id, dist);
+    }
+    return map;
+  }, [projects, cityMap, activeCityData, allCities]);
+
   // --- Filter Logic calculations ---
   // The forum can be seen by any user who is in the city and 70 mile radius.
   const filteredProjects = useMemo(() => {
-    const searchLower = searchTerm.toLowerCase();
-    return projects.filter((project) => {
-      // 1. Calculate distance between the viewer's activeCity and the project's city
-      const projectCityData = allCities.find((c) => c.name.toLowerCase() === project.city.toLowerCase()) || allCities[0];
-      const distanceMiles = getDistance(
-        activeCityData.lat,
-        activeCityData.lng,
-        projectCityData.lat,
-        projectCityData.lng
-      );
+    const searchLower = searchTerm.trim().toLowerCase();
+    const tradeLower = selectedTradeFilter.toLowerCase();
 
-      // Filter Rule: must reside within radius limit
-      const isWithinRadius = distanceMiles <= radiusLimit;
+    const filtered = projects.filter((project) => {
+      // 1. Distance check from cached map
+      const distanceMiles = projectDistanceMap.get(project.id) ?? 999;
+      if (distanceMiles > radiusLimit) return false;
 
-      // 2. Search query matches title/description
-      const matchesSearch =
-        !searchLower ||
-        project.title.toLowerCase().includes(searchLower) ||
-        project.description.toLowerCase().includes(searchLower);
+      // 2. Search query matches title/description/city
+      if (searchLower) {
+        const matchesSearch =
+          project.title.toLowerCase().includes(searchLower) ||
+          project.description.toLowerCase().includes(searchLower) ||
+          project.city.toLowerCase().includes(searchLower);
+        if (!matchesSearch) return false;
+      }
 
-      return isWithinRadius && matchesSearch;
+      // 3. Trade Category Filter
+      if (tradeLower) {
+        const matchesTrade =
+          project.title.toLowerCase().includes(tradeLower) ||
+          project.description.toLowerCase().includes(tradeLower);
+        if (!matchesTrade) return false;
+      }
+
+      // 4. Quick Filter Modes for ultra-fast browsing & engagement
+      const projectBids = bidsByProjectId.get(project.id) || EMPTY_BIDS;
+      if (quickFilterMode === "zero_bids") {
+        return projectBids.length === 0 && (project.status === "open" || project.status === "bid_placed");
+      } else if (quickFilterMode === "urgent") {
+        return Boolean(project.isEmergency || project.isBoosted);
+      } else if (quickFilterMode === "high_budget") {
+        return (project.budget || 0) >= 1000;
+      } else if (quickFilterMode === "bidding") {
+        return projectBids.length > 0 && (project.status === "bid_placed" || project.status === "open");
+      } else if (quickFilterMode === "escrow_ready") {
+        return project.status === "accepted" || Boolean(project.agreedByCustomer);
+      }
+
+      return true;
     });
-  }, [projects, allCities, activeCityData, radiusLimit, searchTerm]);
+
+    // Sort order
+    return filtered.sort((a, b) => {
+      if (sortBy === "least_bids") {
+        const aBids = (bidsByProjectId.get(a.id) || EMPTY_BIDS).length;
+        const bBids = (bidsByProjectId.get(b.id) || EMPTY_BIDS).length;
+        if (aBids !== bBids) return aBids - bBids;
+        return (b.budget || 0) - (a.budget || 0);
+      }
+      if (sortBy === "highest_budget") {
+        return (b.budget || 0) - (a.budget || 0);
+      }
+      if (sortBy === "closest") {
+        const aDist = projectDistanceMap.get(a.id) ?? 0;
+        const bDist = projectDistanceMap.get(b.id) ?? 0;
+        return aDist - bDist;
+      }
+      if (sortBy === "newest") {
+        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      }
+      return 0;
+    });
+  }, [projects, bidsByProjectId, projectDistanceMap, radiusLimit, searchTerm, selectedTradeFilter, quickFilterMode, sortBy]);
 
   // Filter Contractors
   const filteredContractors = useMemo(() => {
-    const searchLower = searchTerm.toLowerCase();
+    const searchLower = searchTerm.trim().toLowerCase();
     const uniqueContractors = Array.from(
       new Map<string, ContractorUser>(contractors.map((c) => [c.id, c])).values()
     );
@@ -1272,26 +1518,26 @@ export default function App() {
         onOpenAppStoreModal={() => setShowAppStoreModal(true)}
       />
 
-      {/* Apple App Store & iOS Native Installation Smart Banner */}
+      {/* Universal 1-Click Web Access & Mobile Ready Banner */}
       {!dismissedAppStoreBanner && (
         <div 
           className="bg-gradient-to-r from-zinc-950 via-slate-900 to-zinc-900 text-white border-b border-zinc-800 px-4 py-2.5 shadow-sm"
-          id="apple-appstore-smart-banner"
+          id="universal-access-smart-banner"
         >
           <div className="max-w-7xl mx-auto flex items-center justify-between gap-3 text-xs flex-wrap">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white shrink-0 p-1">
-                <img src="/apple-touch-icon.svg" alt="App Icon" className="w-full h-full object-contain" />
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/30 flex items-center justify-center text-amber-400 shrink-0 p-1">
+                <Zap className="w-4 h-4 text-amber-400" />
               </div>
               <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-white text-xs">Hot Spot Workshop for iOS</span>
-                  <span className="bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[9px] font-black px-1.5 py-0.2 rounded font-mono">
-                    iOS 16+ & PWA
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-extrabold text-white text-xs">⚡ Universal 1-Click Access Active</span>
+                  <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-[9px] font-black px-1.5 py-0.2 rounded font-mono">
+                    Works on All Devices (No Download Needed)
                   </span>
                 </div>
                 <p className="text-[11px] text-zinc-400 hidden sm:block">
-                  Available for download on Apple devices. Install direct to home screen or get the Xcode submission package.
+                  Instantly access all verified trade directories, damage scanners, and escrow bids in your browser.
                 </p>
               </div>
             </div>
@@ -1300,15 +1546,20 @@ export default function App() {
               <button
                 type="button"
                 onClick={() => setShowAppStoreModal(true)}
-                className="bg-white hover:bg-zinc-100 text-zinc-950 font-black px-3.5 py-1.5 rounded-xl text-xs transition shadow-xs flex items-center gap-1.5 cursor-pointer active:scale-95"
-                id="banner-get-appstore-btn"
+                className="bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 font-bold px-3 py-1 rounded-xl text-xs transition flex items-center gap-1.5 cursor-pointer"
+                id="banner-mobile-options-btn"
               >
-                <Apple className="w-3.5 h-3.5 fill-current text-zinc-950" />
-                <span>GET / INSTALL</span>
+                <Smartphone className="w-3.5 h-3.5 text-amber-400" />
+                <span>Mobile & App Info</span>
               </button>
               <button
                 type="button"
-                onClick={() => setDismissedAppStoreBanner(true)}
+                onClick={() => {
+                  setDismissedAppStoreBanner(true);
+                  try {
+                    SafeStorage.setItem("hsws_dismiss_universal_banner", "true");
+                  } catch {}
+                }}
                 className="text-zinc-400 hover:text-white p-1 rounded-lg transition text-xs font-bold cursor-pointer"
                 title="Dismiss banner"
               >
@@ -1318,6 +1569,31 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Live Marketplace Activity Ticker with Real-Time FOMO & Social Proof */}
+      <LiveMarketplaceTicker
+        projects={projects}
+        bids={bids}
+        contractors={contractors}
+        onSelectProject={(projectId) => {
+          setActiveTab("projects");
+          setTimeout(() => {
+            const el = document.getElementById(`project-card-${projectId}`);
+            if (el) {
+              el.scrollIntoView({ behavior: "smooth", block: "center" });
+              el.classList.add("ring-4", "ring-amber-500", "duration-500");
+              setTimeout(() => el.classList.remove("ring-4", "ring-amber-500"), 3000);
+            }
+          }, 300);
+        }}
+        onOpenMonetization={() => {
+          if (currentUser?.role === "contractor") {
+            setShowContractorProModal(true);
+          } else {
+            setActiveTab("monetize");
+          }
+        }}
+      />
 
       {/* Quick Interactive Role Switcher for seamless sandbox trials - RESTRICTED TO OWNER DASHBOARD TAB ONLY */}
       {activeTab === "owner_suite" && (
@@ -1370,15 +1646,16 @@ export default function App() {
       )}
 
       {/* Main Forum View Body */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-8 space-y-8">
+      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-4 py-4 sm:py-8 pb-32 sm:pb-16 space-y-5 sm:space-y-8">
         
         {/* Banner Section */}
         <section className="bg-gradient-to-br from-[#0c2340] via-[#1d2a44] to-[#0a192f] text-white p-8 rounded-3xl shadow-md text-center md:text-left relative overflow-hidden flex flex-col md:flex-row justify-between items-center gap-8 border border-zinc-800">
           <div className="absolute right-0 bottom-0 top-0 left-0 bg-[radial-gradient(circle_at_70%_20%,rgba(225,29,72,0.1)_0%,transparent_50%)] pointer-events-none" />
           
           <div className="space-y-3 relative z-10 max-w-2xl">
-            <span className="inline-block px-3 py-1 bg-red-600/30 text-white text-[10px] uppercase font-black tracking-widest rounded-full border border-red-500/40">
-              🇺🇸 USA Tradesmen Network & Hotspot
+            <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-red-600 text-white text-[11px] sm:text-xs uppercase font-black tracking-wider rounded-full border border-red-400 shadow-md">
+              <span className="w-2 h-2 rounded-full bg-white animate-ping shrink-0" />
+              <span>🇺🇸 USA Tradesmen Network & Hotspot</span>
             </span>
             <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight font-display text-white">
               Connect Home & Business Owners with Specialized Trades
@@ -1544,7 +1821,7 @@ export default function App() {
                 <Search className="absolute left-3.5 top-3 w-4 h-4 text-zinc-400" />
                 <input
                   type="text"
-                  placeholder={activeTab === "contractor-1" ? "Search contractors by keyword..." : "Search matching lawn, gutters, TVs, glazing..."}
+                  placeholder={activeTab === "contractors" ? "Search contractors by keyword..." : "Search matching lawn, gutters, TVs, glazing..."}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-9 pr-3 py-2.5 text-xs focus:ring-1 focus:ring-amber-550 focus:bg-white focus:outline-hidden"
@@ -1560,124 +1837,573 @@ export default function App() {
           {activeTab === "spiral_game" && <SpiralFrenzyGame />}
 
           {activeTab === "projects" && (
-            <div className="space-y-4">
-              <div className="flex flex-col sm:flex-row gap-2.5 justify-between items-start sm:items-center bg-zinc-100/60 p-2.5 rounded-2xl border border-zinc-200/50">
-                <div>
-                  <h2 className="font-display font-extrabold text-lg text-zinc-900 px-1">
-                    Active Projects Forum Board
-                  </h2>
-                  <p className="text-xs text-zinc-500 font-medium px-1">
-                    Showing {filteredProjects.length} matching jobs within {radiusLimit} miles
-                  </p>
-                </div>
+            <div className="space-y-5">
 
-                <div className="flex items-center gap-2 self-end sm:self-auto">
-                  <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider hidden sm:inline">View:</span>
-                  <div className="inline-flex p-1 bg-white border border-zinc-200 rounded-xl text-xs font-bold shadow-3xs">
-                    <button
-                      type="button"
-                      onClick={() => setJobsLayoutMode("grid")}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                        jobsLayoutMode === "grid"
-                          ? "bg-amber-600 text-white shadow-2xs"
-                          : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
-                      }`}
-                      title="Compact 2-Column Grid view for fast scrolling"
-                    >
-                      <LayoutGrid className="w-3.5 h-3.5" />
-                      <span>Grid View</span>
-                    </button>
+              {/* Fast 15-Second Job Template Launcher */}
+              <QuickJobPostTemplateBar
+                onSelectTemplate={(template) => {
+                  setInitialProjectFormData({
+                    title: template.title,
+                    description: template.description,
+                    budget: template.budget,
+                  });
+                  if (!currentUser) {
+                    setShowAuthModal(true);
+                  } else {
+                    setShowProjectModal(true);
+                  }
+                }}
+                onOpenCustomPost={() => {
+                  if (!currentUser) {
+                    setShowAuthModal(true);
+                  } else {
+                    setShowProjectModal(true);
+                  }
+                }}
+                onOpenRushDispatch={() => {
+                  setMonetizationModalState({
+                    isOpen: true,
+                    kind: "rush_dispatch",
+                    targetProject: null,
+                  });
+                }}
+              />
 
-                    <button
-                      type="button"
-                      onClick={() => setJobsLayoutMode("list")}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                        jobsLayoutMode === "list"
-                          ? "bg-amber-600 text-white shadow-2xs"
-                          : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
-                      }`}
-                      title="Single column compact list view"
-                    >
-                      <List className="w-3.5 h-3.5" />
-                      <span>List View</span>
-                    </button>
+              {/* Focus Section Switcher to De-congest Home Screen */}
+              <HomeFocusSectionSelector
+                currentMode={homeFocusMode}
+                onChangeMode={setHomeFocusMode}
+                filteredJobsCount={filteredProjects.length}
+                activeCityName={currentCityName}
+                onOpenQuickQuote={() => setShowQuoteCalculatorModal(true)}
+                onOpenEmergencyModal={() => setShowEmergencyDispatchModal(true)}
+                onOpenContractorProModal={() => {
+                  setMonetizationModalState({
+                    isOpen: true,
+                    kind: "contractor_pro",
+                    targetProject: null,
+                  });
+                }}
+              />
 
-                    <button
-                      type="button"
-                      onClick={() => setJobsLayoutMode("calendar")}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg transition-all cursor-pointer ${
-                        jobsLayoutMode === "calendar"
-                          ? "bg-amber-600 text-white shadow-2xs"
-                          : "text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100"
-                      }`}
-                      title="Interactive Calendar Schedule view with AI Completion Estimates"
-                      id="toggle-calendar-view-btn"
-                    >
-                      <CalendarIcon className="w-3.5 h-3.5" />
-                      <span>Calendar View</span>
-                    </button>
+              {/* FOCUS MODE: TOOLS & UTILITIES */}
+              {(homeFocusMode === "tools" || homeFocusMode === "all") && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  {/* Pro Trade Tools & Emergency Dispatch Quick Command Strip */}
+                  <div className="bg-white border border-zinc-200 rounded-3xl p-4 sm:p-5 shadow-xs space-y-3" id="pro-trade-command-strip">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+                        <h3 className="font-display font-black text-xs sm:text-sm text-zinc-900 uppercase tracking-wider">
+                          Hot Spot Pro Tradesmen & Homeowner Toolkit
+                        </h3>
+                      </div>
+                      <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 px-2.5 py-1 rounded-full">
+                        5 Built-In Contractor & Client Utilities
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5">
+                      {/* Tool 1: 24/7 Emergency Dispatch */}
+                      <button
+                        type="button"
+                        onClick={() => setShowEmergencyDispatchModal(true)}
+                        className="p-3 rounded-2xl bg-rose-50 hover:bg-rose-100 border border-rose-200 hover:border-rose-300 text-left transition shadow-3xs cursor-pointer group flex flex-col justify-between"
+                        id="command-strip-emergency-dispatch-btn"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs">🚨</span>
+                          <span className="text-[9px] font-black uppercase tracking-wider text-rose-700 bg-rose-200/60 px-1.5 py-0.5 rounded-md">
+                            24/7 Active
+                          </span>
+                        </div>
+                        <div className="mt-2">
+                          <h4 className="font-display font-black text-xs text-rose-950 group-hover:text-rose-700 transition">
+                            Emergency Dispatch
+                          </h4>
+                          <p className="text-[10px] text-rose-700/80 leading-tight mt-0.5 font-medium">
+                            Burst pipes, roof leaks & power outages
+                          </p>
+                        </div>
+                      </button>
+
+                      {/* Tool 2: Before & After Showcase */}
+                      <button
+                        type="button"
+                        onClick={() => setShowGlobalBeforeAfterModal(true)}
+                        className="p-3 rounded-2xl bg-cyan-50 hover:bg-cyan-100 border border-cyan-200 hover:border-cyan-300 text-left transition shadow-3xs cursor-pointer group flex flex-col justify-between"
+                        id="command-strip-before-after-btn"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs">📸</span>
+                          <span className="text-[9px] font-black uppercase tracking-wider text-cyan-800 bg-cyan-200/60 px-1.5 py-0.5 rounded-md">
+                            Interactive
+                          </span>
+                        </div>
+                        <div className="mt-2">
+                          <h4 className="font-display font-black text-xs text-cyan-950 group-hover:text-cyan-700 transition">
+                            Before & After Gallery
+                          </h4>
+                          <p className="text-[10px] text-cyan-800/80 leading-tight mt-0.5 font-medium">
+                            Compare verified transformations with sliders
+                          </p>
+                        </div>
+                      </button>
+
+                      {/* Tool 3: Invoicing & Estimates */}
+                      <button
+                        type="button"
+                        onClick={() => setShowGlobalInvoiceModal(true)}
+                        className="p-3 rounded-2xl bg-amber-50 hover:bg-amber-100 border border-amber-200 hover:border-amber-300 text-left transition shadow-3xs cursor-pointer group flex flex-col justify-between"
+                        id="command-strip-invoice-generator-btn"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs">📋</span>
+                          <span className="text-[9px] font-black uppercase tracking-wider text-amber-800 bg-amber-200/60 px-1.5 py-0.5 rounded-md">
+                            PDF Ready
+                          </span>
+                        </div>
+                        <div className="mt-2">
+                          <h4 className="font-display font-black text-xs text-amber-950 group-hover:text-amber-700 transition">
+                            Invoice & Estimate PDF
+                          </h4>
+                          <p className="text-[10px] text-amber-800/80 leading-tight mt-0.5 font-medium">
+                            Branded itemized bids with digital sign-off
+                          </p>
+                        </div>
+                      </button>
+
+                      {/* Tool 4: Material & Permit Calculator */}
+                      <button
+                        type="button"
+                        onClick={() => setShowGlobalPermitModal(true)}
+                        className="p-3 rounded-2xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 hover:border-emerald-300 text-left transition shadow-3xs cursor-pointer group flex flex-col justify-between"
+                        id="command-strip-material-permit-btn"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs">🧮</span>
+                          <span className="text-[9px] font-black uppercase tracking-wider text-emerald-800 bg-emerald-200/60 px-1.5 py-0.5 rounded-md">
+                            City Guide
+                          </span>
+                        </div>
+                        <div className="mt-2">
+                          <h4 className="font-display font-black text-xs text-emerald-950 group-hover:text-emerald-700 transition">
+                            Material & Permits
+                          </h4>
+                          <p className="text-[10px] text-emerald-800/80 leading-tight mt-0.5 font-medium">
+                            Municipal codes & wholesale cost calculator
+                          </p>
+                        </div>
+                      </button>
+
+                      {/* Tool 5: Subcontractor Crew Board */}
+                      <button
+                        type="button"
+                        onClick={() => setShowGlobalCrewBoardModal(true)}
+                        className="p-3 rounded-2xl bg-slate-900 hover:bg-zinc-800 border border-zinc-700 text-white text-left transition shadow-3xs cursor-pointer group flex flex-col justify-between"
+                        id="command-strip-crew-board-btn"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs">👷</span>
+                          <span className="text-[9px] font-black uppercase tracking-wider text-amber-400 bg-amber-400/20 px-1.5 py-0.5 rounded-md">
+                            B2B Trades
+                          </span>
+                        </div>
+                        <div className="mt-2">
+                          <h4 className="font-display font-black text-xs text-white group-hover:text-amber-400 transition">
+                            Sub Crew Board
+                          </h4>
+                          <p className="text-[10px] text-zinc-300 leading-tight mt-0.5 font-medium">
+                            Hire specialized crews & trade day-labor
+                          </p>
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Instant Home Repair Cost Estimator Widget */}
+                  <div className="relative">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[10px] font-black uppercase text-amber-700 tracking-wider flex items-center gap-1.5">
+                        <Zap className="w-3.5 h-3.5 text-amber-600" /> Fast Quote & 1-Click Estimator Engine
+                      </span>
+                    </div>
+                    <InstantRepairPricingWidget
+                      onAutoCreateJob={(preset) => {
+                        setInitialProjectFormData(preset);
+                        if (!currentUser) {
+                          setShowAuthModal(true);
+                        } else {
+                          setShowProjectModal(true);
+                        }
+                      }}
+                      onOpenAppStoreModal={() => setShowAppStoreModal(true)}
+                    />
                   </div>
                 </div>
-              </div>
+              )}
 
-              {jobsLayoutMode === "calendar" ? (
-                <ProjectCalendarView
-                  projects={filteredProjects}
-                  bids={bids}
-                  currentUser={currentUser}
-                  onSelectProject={(projectId) => {
-                    setSelectedMapProjectId(projectId);
-                  }}
-                  onUpdateProjectCompletionDate={handleUpdateProjectCompletionDate}
-                />
-              ) : filteredProjects.length === 0 ? (
-                <div className="bg-white border border-zinc-200 rounded-2xl p-12 text-center max-w-xl mx-auto space-y-4">
-                  <span className="text-4xl">🔎</span>
-                  <h3 className="font-display font-medium text-zinc-800 text-lg">No nearby listings match your selection</h3>
-                  <p className="text-zinc-500 text-xs leading-relaxed">
-                    Either extend your mileage search radius past **{radiusLimit} miles** or try adjusting your current city base location. Alternatively, post a new project to kickstart the community!
-                  </p>
-                  <button
-                    onClick={() => setRadiusLimit(120)}
-                    className="mt-2 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl px-4 py-2 transition"
-                  >
-                    Set Max Radius (120 Miles)
-                  </button>
+              {/* FOCUS MODE: TRENDS & DEMAND (ACTIVE TRADES INSIGHTS) */}
+              {(homeFocusMode === "trends" || homeFocusMode === "all") && (
+                <div className="animate-in fade-in duration-200">
+                  <ActiveTradesInsights
+                    projects={projects}
+                    bids={bids}
+                    contractors={contractors}
+                    activeCityName={currentCityName}
+                    activeCityData={activeCityData}
+                    radiusLimit={radiusLimit}
+                    currentUser={currentUser}
+                    onSelectTradeFilter={(trade) => {
+                      setSelectedTradeFilter(trade);
+                      setHomeFocusMode("feed");
+                      const radarEl = document.getElementById("bid-opportunity-radar-root");
+                      if (radarEl) {
+                        radarEl.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }
+                    }}
+                    onPostProjectInTrade={(trade) => {
+                      setInitialProjectFormData({
+                        title: `${trade} Needed`,
+                        description: `Looking for experienced, licensed ${trade} specialist in ${currentCityName}. Please review job requirements and submit itemized bid proposal.`,
+                        budget: 450,
+                      });
+                      if (!currentUser) {
+                        setShowAuthModal(true);
+                      } else {
+                        setShowProjectModal(true);
+                      }
+                    }}
+                    onOpenContractorProModal={() => {
+                      setMonetizationModalState({
+                        isOpen: true,
+                        kind: "contractor_pro",
+                        targetProject: null,
+                      });
+                    }}
+                  />
                 </div>
-              ) : (
-                <div className={jobsLayoutMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "grid grid-cols-1 gap-4"}>
-                  {filteredProjects.map((project) => {
-                    const projectCityData = allCities.find((c) => c.name.toLowerCase() === project.city.toLowerCase()) || allCities[0];
-                    const dist = getDistance(
-                      activeCityData.lat,
-                      activeCityData.lng,
-                      projectCityData.lat,
-                      projectCityData.lng
-                    );
+              )}
 
-                    return (
-                      <ProjectCard
-                        key={project.id}
-                        project={project}
-                        bids={bids.filter((b) => b.projectId === project.id)}
-                        currentUser={currentUser}
-                        currentCityName={currentCityName}
-                        distanceToProject={dist}
-                        onPlaceBid={(amount, msg) => handlePlaceBid(project.id, amount, msg)}
-                        onAgreeToProject={() => handleAgreeToProject(project.id)}
-                        onAcceptBid={(bidId) => handleAcceptBid(project.id, bidId)}
-                        onCompleteProject={() => handleCompleteProject(project.id)}
-                        onStartChat={handleStartChat}
-                        onCounterBid={handleCounterBid}
-                        onContractorAcceptCounter={handleContractorAcceptCounter}
-                        onContractorDeclineCounter={handleContractorDeclineCounter}
-                        onContractorCounter={handleContractorCounter}
-                        onViewOnMap={(projectId) => { setSelectedMapProjectId(projectId); setShowMapsDirectory(true); }}
-                        onSimulateContractorBid={handleSimulateContractorBid}
-                        onUpdateProjectImages={handleUpdateProjectImages}
-                      />
-                    );
-                  })}
+              {/* FOCUS MODE: PRO EARNINGS & MONETIZATION ACCELERATOR */}
+              {(homeFocusMode === "pro_earnings" || homeFocusMode === "all") && (
+                <div className="space-y-4 bg-gradient-to-br from-zinc-900 via-slate-900 to-zinc-950 border border-amber-500/30 rounded-3xl p-5 text-white shadow-xl animate-in fade-in duration-200">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-zinc-800 pb-4">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="p-1 rounded-lg bg-amber-500 text-slate-950">
+                          <Crown className="w-4 h-4" />
+                        </span>
+                        <h3 className="font-display font-black text-base text-white">
+                          Contractor & Homeowner Revenue Accelerator
+                        </h3>
+                      </div>
+                      <p className="text-xs text-zinc-400 mt-1">
+                        High-speed lead monetization, 0% commission unlocks, and urgent repair broadcasts.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab("monetize")}
+                      className="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-sm"
+                    >
+                      Open Full Earnings Suite →
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    {/* Card 1: Contractor Pro */}
+                    <div className="bg-zinc-800/80 border border-amber-500/40 rounded-2xl p-4 flex flex-col justify-between space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-500 text-slate-950">
+                            PRO TIER
+                          </span>
+                          <span className="text-base font-black font-mono text-amber-400">$29/mo</span>
+                        </div>
+                        <h4 className="font-display font-bold text-sm text-white mt-2">
+                          Contractor Pro Tier
+                        </h4>
+                        <p className="text-[11px] text-zinc-400 leading-tight mt-1">
+                          15-min early notifications, verified gold badge & #1 city ranking.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMonetizationModalState({
+                            isOpen: true,
+                            kind: "contractor_pro",
+                            targetProject: null,
+                          });
+                        }}
+                        className="w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer shadow-xs"
+                      >
+                        Activate Pro Pass
+                      </button>
+                    </div>
+
+                    {/* Card 2: Direct Lead Unlock */}
+                    <div className="bg-zinc-800/80 border border-blue-500/40 rounded-2xl p-4 flex flex-col justify-between space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-blue-500 text-white">
+                            INSTANT CALL
+                          </span>
+                          <span className="text-base font-black font-mono text-blue-400">$15.00</span>
+                        </div>
+                        <h4 className="font-display font-bold text-sm text-white mt-2">
+                          Direct Lead Unlock
+                        </h4>
+                        <p className="text-[11px] text-zinc-400 leading-tight mt-1">
+                          Reveal unmasked homeowner phone & email immediately to close fast.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMonetizationModalState({
+                            isOpen: true,
+                            kind: "lead_unlock",
+                            targetProject: filteredProjects[0] || null,
+                          });
+                        }}
+                        className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs transition cursor-pointer shadow-xs"
+                      >
+                        Unlock Direct Lead ($15)
+                      </button>
+                    </div>
+
+                    {/* Card 3: 15-Min Rush Dispatch */}
+                    <div className="bg-zinc-800/80 border border-rose-500/40 rounded-2xl p-4 flex flex-col justify-between space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-rose-600 text-white">
+                            EMERGENCY
+                          </span>
+                          <span className="text-base font-black font-mono text-rose-400">$25.00</span>
+                        </div>
+                        <h4 className="font-display font-bold text-sm text-white mt-2">
+                          15-Min Rush Siren
+                        </h4>
+                        <p className="text-[11px] text-zinc-400 leading-tight mt-1">
+                          SMS blast 20+ nearby licensed pros for guaranteed urgent repair response.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMonetizationModalState({
+                            isOpen: true,
+                            kind: "rush_dispatch",
+                            targetProject: null,
+                          });
+                        }}
+                        className="w-full py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-black text-xs transition cursor-pointer shadow-xs"
+                      >
+                        Launch Urgent Rush ($25)
+                      </button>
+                    </div>
+
+                    {/* Card 4: Featured Project Boost */}
+                    <div className="bg-zinc-800/80 border border-amber-400/40 rounded-2xl p-4 flex flex-col justify-between space-y-3">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black uppercase px-2 py-0.5 rounded-md bg-amber-400 text-slate-950">
+                            3X VIEWS
+                          </span>
+                          <span className="text-base font-black font-mono text-amber-300">$9.99</span>
+                        </div>
+                        <h4 className="font-display font-bold text-sm text-white mt-2">
+                          Featured 3x Boost
+                        </h4>
+                        <p className="text-[11px] text-zinc-400 leading-tight mt-1">
+                          Pin job to #1 top position with gold border for maximum contractor bids.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMonetizationModalState({
+                            isOpen: true,
+                            kind: "project_boost",
+                            targetProject: filteredProjects[0] || null,
+                          });
+                        }}
+                        className="w-full py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs transition cursor-pointer shadow-xs"
+                      >
+                        Boost Top Listing ($9.99)
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* FOCUS MODE: LIVE FEED (PRIMARY JOBS FORUM) */}
+              {(homeFocusMode === "feed" || homeFocusMode === "all") && (
+                <div className="space-y-4 animate-in fade-in duration-200">
+                  {/* Contractor Pro Booster Bar (Monetization Driver) */}
+                  <div className="bg-gradient-to-r from-slate-950 via-zinc-900 to-slate-950 border border-amber-500/40 rounded-2xl p-4 text-white shadow-md flex flex-col sm:flex-row items-center justify-between gap-3.5">
+                    <div className="flex items-center gap-3 w-full sm:w-auto">
+                      <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0 shadow-sm">
+                        <Crown className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-[10px] font-black uppercase bg-amber-500 text-slate-950 px-2 py-0.2 rounded-full">
+                            PRO CONTRACTOR NETWORK
+                          </span>
+                          <span className="text-xs font-black text-amber-300">
+                            Get 15-Minute Early Job Alerts & #1 Verified Search Placement
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-400 mt-0.5">
+                          Pro Contractors win an average of $3,400+ more monthly projects with zero contact unlock fees.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 w-full sm:w-auto justify-end shrink-0">
+                      <button
+                        onClick={() => {
+                          setMonetizationModalState({
+                            isOpen: true,
+                            kind: "contractor_pro",
+                            targetProject: null,
+                          });
+                        }}
+                        className="w-full sm:w-auto bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                        id="projects-top-pro-upgrade-btn"
+                      >
+                        <Zap className="w-3.5 h-3.5" />
+                        <span>Go Pro ($29/mo)</span>
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Bid Opportunity Radar & Layout Switcher */}
+                  <BidOpportunityRadar
+                    projects={projects}
+                    bids={bids}
+                    filteredCount={filteredProjects.length}
+                    quickFilterMode={quickFilterMode}
+                    onChangeQuickFilter={setQuickFilterMode}
+                    selectedTradeFilter={selectedTradeFilter}
+                    onChangeTradeFilter={setSelectedTradeFilter}
+                    sortBy={sortBy}
+                    onChangeSortBy={setSortBy}
+                    searchTerm={searchTerm}
+                    onChangeSearchTerm={setSearchTerm}
+                    layoutMode={jobsLayoutMode}
+                    onChangeLayoutMode={setJobsLayoutMode}
+                    availableTrades={TRADE_OPTIONS}
+                  />
+
+                  {/* View Router (Calendar / Table / Grid / Empty) */}
+                  {jobsLayoutMode === "calendar" ? (
+                    <ProjectCalendarView
+                      projects={filteredProjects}
+                      bids={bids}
+                      currentUser={currentUser}
+                      onSelectProject={(projectId) => {
+                        setSelectedMapProjectId(projectId);
+                      }}
+                      onUpdateProjectCompletionDate={handleUpdateProjectCompletionDate}
+                    />
+                  ) : jobsLayoutMode === "table" ? (
+                    <ProjectOpportunityTable
+                      projects={filteredProjects}
+                      bids={bids}
+                      currentUser={currentUser}
+                      currentCityName={currentCityName}
+                      onPlaceBid={(projectId, amount, msg) => handlePlaceBid(projectId, amount, msg)}
+                      onViewOnMap={(projectId) => {
+                        setSelectedMapProjectId(projectId);
+                        setShowMapsDirectory(true);
+                      }}
+                      onStartChat={handleStartChat}
+                    />
+                  ) : filteredProjects.length === 0 ? (
+                    <div className="bg-white border border-zinc-200 rounded-2xl p-12 text-center max-w-xl mx-auto space-y-4 shadow-xs">
+                      <span className="text-4xl">🔎</span>
+                      <h3 className="font-display font-bold text-zinc-900 text-lg">No job opportunities match this filter</h3>
+                      <p className="text-zinc-500 text-xs leading-relaxed">
+                        Try expanding your radius past {radiusLimit} miles, switching your trade category, or clearing active filters to see all available local jobs.
+                      </p>
+                      <div className="flex items-center justify-center gap-2 pt-2">
+                        <button
+                          onClick={() => {
+                            setQuickFilterMode("all");
+                            setSelectedTradeFilter("");
+                            setSearchTerm("");
+                            setRadiusLimit(120);
+                          }}
+                          className="text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-xl px-4 py-2.5 transition cursor-pointer"
+                        >
+                          Reset All Filters & Maximize Radius (120 mi)
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className={jobsLayoutMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "grid grid-cols-1 gap-4"}>
+                      {filteredProjects.map((project) => {
+                        const dist = projectDistanceMap.get(project.id) ?? 0;
+                        const projectBids = bidsByProjectId.get(project.id) || EMPTY_BIDS;
+
+                        return (
+                          <ProjectCard
+                            key={project.id}
+                            project={project}
+                            bids={projectBids}
+                            currentUser={currentUser}
+                            currentCityName={currentCityName}
+                            distanceToProject={dist}
+                            onPlaceBid={(amount, msg) => handlePlaceBid(project.id, amount, msg)}
+                            onAgreeToProject={() => handleAgreeToProject(project.id)}
+                            onAcceptBid={(bidId) => handleAcceptBid(project.id, bidId)}
+                            onCompleteProject={() => handleCompleteProject(project.id)}
+                            onStartChat={handleStartChat}
+                            onCounterBid={handleCounterBid}
+                            onContractorAcceptCounter={handleContractorAcceptCounter}
+                            onContractorDeclineCounter={handleContractorDeclineCounter}
+                            onContractorCounter={handleContractorCounter}
+                            onViewOnMap={(projectId) => { setSelectedMapProjectId(projectId); setShowMapsDirectory(true); }}
+                            onSimulateContractorBid={handleSimulateContractorBid}
+                            onUpdateProjectImages={handleUpdateProjectImages}
+                          />
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* FOCUS MODE: MAP VIEW */}
+              {homeFocusMode === "map" && (
+                <div className="bg-white border border-zinc-200 rounded-3xl p-6 shadow-sm space-y-4 text-center animate-in fade-in duration-200">
+                  <div className="w-12 h-12 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center mx-auto">
+                    <Compass className="w-6 h-6 animate-pulse" />
+                  </div>
+                  <div>
+                    <h3 className="font-display font-black text-lg text-zinc-900">
+                      Interactive Central Map Directory
+                    </h3>
+                    <p className="text-xs text-zinc-500 max-w-md mx-auto mt-1">
+                      Explore all active local vacancies and licensed contractor headquarters across {currentCityName} within {radiusLimit} miles.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedMapProjectId(null);
+                      setShowMapsDirectory(true);
+                    }}
+                    className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-display font-black text-xs rounded-2xl transition shadow-md inline-flex items-center gap-2 cursor-pointer active:scale-95"
+                  >
+                    <Compass className="w-4 h-4 text-amber-300" />
+                    <span>Launch Fullscreen Google Maps Directory</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -1685,6 +2411,36 @@ export default function App() {
 
           {activeTab === "contractors" && (
             <div className="space-y-6">
+              {/* Pro Upgrade & Verified Contractor CTA */}
+              <div className="bg-gradient-to-r from-zinc-950 via-slate-900 to-zinc-950 border border-amber-500/30 rounded-2xl p-4 text-white shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shrink-0">
+                    <Crown className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-extrabold text-sm text-white">Are you a Licensed Trade Professional?</span>
+                      <span className="bg-amber-500 text-slate-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                        Pro Tier
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-400 mt-0.5">
+                      Join the Top 1% of Contractors. Receive instant SMS lead dispatch, #1 profile ranking, and verified gold badges.
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowContractorProModal(true)}
+                  className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs px-4 py-2.5 rounded-xl shadow-md transition flex items-center gap-1.5 cursor-pointer whitespace-nowrap active:scale-95"
+                  id="contractors-tab-upgrade-pro-btn"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>Boost Profile ($29/mo)</span>
+                </button>
+              </div>
+
               <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center bg-zinc-100/50 p-3 rounded-xl border border-zinc-200/50">
                 <h2 className="font-display font-extrabold text-lg text-zinc-900 px-2 shrink-0">
                   Registered Specialized Contractors
@@ -1735,10 +2491,23 @@ export default function App() {
                       onAddReview={handleAddReview}
                       onToggleAvailability={handleToggleContractorAvailability}
                       onStartChat={handleStartChat}
+                      onUpdatePortfolio={handleUpdateContractorPortfolio}
                     />
                   ))}
                 </div>
               )}
+            </div>
+          )}
+
+          {activeTab === "rebates" && (
+            <div className="space-y-6">
+              <MaterialPartnerRebateHub
+                currentUser={currentUser}
+                currentCityName={currentCityName}
+                onSelectMaterialOffer={(offer) => {
+                  alert(`✨ Offer Activated: ${offer.title} at ${offer.merchant}! Direct discount & rebate application ready.`);
+                }}
+              />
             </div>
           )}
 
@@ -1985,7 +2754,7 @@ export default function App() {
                               <ProjectCard
                                 key={project.id}
                                 project={project}
-                                bids={bids.filter((b) => b.projectId === project.id)}
+                                bids={bidsByProjectId.get(project.id) || EMPTY_BIDS}
                                 currentUser={currentUser}
                                 onAgreeToProject={() => handleAgreeToProject(project.id)}
                                 onAcceptBid={(bidId) => handleAcceptBid(project.id, bidId)}
@@ -2021,7 +2790,7 @@ export default function App() {
                               <ProjectCard
                                 key={project.id}
                                 project={project}
-                                bids={bids.filter((b) => b.projectId === project.id)}
+                                bids={bidsByProjectId.get(project.id) || EMPTY_BIDS}
                                 currentUser={currentUser}
                                 onAgreeToProject={() => handleAgreeToProject(project.id)}
                                 onCompleteProject={() => handleCompleteProject(project.id)}
@@ -2071,6 +2840,7 @@ export default function App() {
               onAlert={(msg) => alert(msg)}
               seniorMode={seniorMode}
               setSeniorMode={setSeniorMode}
+              onNavigateToAiAgent={() => setActiveTab("ai_agent")}
               onSendEmailCampaign={(subject, body) => {
                 const newLog: EmailLog = {
                   id: `email-campaign-${Math.random().toString(36).substring(2, 9)}`,
@@ -2093,6 +2863,8 @@ export default function App() {
           {activeTab === "ai_agent" && (currentUser?.role === "owner" || currentUser?.isPlatformOwner || currentUser?.username === "nwiller9185") && (
             <AutonomousAdInstallerAgent
               appUrl={window.location.origin}
+              onNavigateToProjects={() => setActiveTab("projects")}
+              onNavigateToContractors={() => setActiveTab("contractors")}
             />
           )}
 
@@ -2229,7 +3001,7 @@ export default function App() {
 
           <div className="text-center md:text-right text-xs text-zinc-500">
             <p>&copy; 2026 Hot Spot Workshop Inc. All rights reserved.</p>
-            <p className="text-[11px] text-zinc-600">iOS 16+ &bull; Standalone Web Application &bull; Escrow Protection</p>
+            <p className="text-[11px] text-zinc-500">⚡ 1-Click Universal Web App &bull; All iOS & Android Devices &bull; Escrow Protection</p>
           </div>
         </div>
       </footer>
@@ -2238,13 +3010,16 @@ export default function App() {
       <button
         type="button"
         onClick={() => setIsChatOpen(!isChatOpen)}
-        className="fixed bottom-6 right-72 bg-[#0c2340] border border-blue-900 hover:bg-[#112d50] rounded-full p-4 shadow-2xl transition duration-200 select-none flex items-center gap-2 font-semibold text-white z-40 active:scale-95 cursor-pointer"
+        className="fixed bottom-20 sm:bottom-6 left-3 sm:left-auto sm:right-72 bg-[#0c2340] border-2 border-blue-400 hover:bg-[#112d50] rounded-full px-3.5 py-2.5 sm:p-4 shadow-2xl transition duration-200 select-none flex items-center gap-2 font-bold text-white z-40 active:scale-95 cursor-pointer ring-2 ring-blue-500/30"
         id="chat-trigger-float-btn"
+        title="Open Private Contractor & Homeowner Messages"
       >
-        <MessageSquare className="w-5 h-5 text-red-500 shrink-0" />
-        <span className="text-xs font-bold text-white tracking-tight">Private Chat ({privateMessages.length})</span>
+        <MessageSquare className="w-4 h-4 sm:w-5 sm:h-5 text-red-400 shrink-0" />
+        <span className="text-[11px] sm:text-xs font-bold text-white tracking-tight whitespace-nowrap">
+          Chat ({privateMessages.length})
+        </span>
         {privateMessages.length > 0 && (
-          <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0 animate-pulse" />
+          <span className="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0 animate-pulse border border-white" />
         )}
       </button>
 
@@ -2263,22 +3038,49 @@ export default function App() {
       {/* Persistent Floating SMTP Email logs simulator bubble */}
       <button
         onClick={() => setShowEmailTracker(!showEmailTracker)}
-        className="fixed bottom-6 right-6 bg-red-600 hover:bg-red-700 text-white border border-red-700 rounded-full p-4 shadow-2xl transition duration-200 select-none flex items-center gap-2 font-mono z-40 active:scale-95 cursor-pointer"
+        className="fixed bottom-20 sm:bottom-6 right-3 sm:right-6 bg-red-600 hover:bg-red-700 text-white border-2 border-white shadow-2xl rounded-full px-3.5 py-2.5 sm:p-4 transition duration-200 select-none flex items-center gap-2 font-mono z-40 active:scale-95 cursor-pointer ring-2 ring-red-500/50"
         id="email-trigger-float-btn"
+        title="Open Tech Relay and Email Notification Logs"
+        aria-label="Open Tech Relay and Email Notification Logs"
       >
-        <Mail className="w-5 h-5 text-white shrink-0" />
-        <span className="text-xs font-bold text-white tracking-tight">Tech Relay logs ({emailLogs.length})</span>
-        <span className="w-2.5 h-2.5 rounded-full bg-blue-200 shrink-0 animate-ping" />
+        <Mail className="w-4 h-4 sm:w-5 sm:h-5 text-white shrink-0" />
+        <span className="text-[11px] sm:text-xs font-black text-white tracking-tight whitespace-nowrap">
+          Tech Relay logs ({emailLogs.length})
+        </span>
+        <span className="w-2.5 h-2.5 rounded-full bg-white shrink-0 animate-ping" />
       </button>
 
       {/* --- Overlay Modals routers --- */}
       {showProjectModal && (
         <ProjectForm
           onAddProject={handleAddProject}
-          onClose={() => setShowProjectModal(false)}
+          onClose={() => {
+            setShowProjectModal(false);
+            setInitialProjectFormData(null);
+          }}
           currentUser={currentUser}
+          initialData={initialProjectFormData}
         />
       )}
+
+      {/* Contractor Pro Membership Upgrade Modal */}
+      <ContractorProModal
+        isOpen={showContractorProModal}
+        onClose={() => setShowContractorProModal(false)}
+        contractor={currentUser?.role === "contractor" ? currentUser : (contractors[0] || null)}
+        onUpgradeSuccess={(updatedContractor) => {
+          if (currentUser?.role === "contractor") {
+            setCurrentUser(updatedContractor);
+          }
+          setContractors((prev) =>
+            prev.map((c) => (c.id === updatedContractor.id ? updatedContractor : c))
+          );
+        }}
+        onOpenStripeHub={() => {
+          setShowContractorProModal(false);
+          setActiveTab("monetize");
+        }}
+      />
 
       {showAuthModal && (
         <AuthModal
@@ -2288,8 +3090,10 @@ export default function App() {
             // If contractor is new, append and seed to active contractors list (unless already exists)
             if (configuredUser.role === "contractor") {
               setContractors((prev) => {
-                if (prev.some(c => c.username === configuredUser.username)) return prev;
-                return [configuredUser, ...prev];
+                if (prev.some(c => c.username === configuredUser.username || c.id === configuredUser.id)) return prev;
+                const next = [configuredUser, ...prev];
+                realtimeSync.publishUpdate("contractors", configuredUser, "upsert", `New Pro Contractor Registered: ${configuredUser.fullName} (${configuredUser.city}, ${configuredUser.state})`);
+                return next;
               });
             }
             setShowAuthModal(false);
@@ -2406,6 +3210,109 @@ export default function App() {
         isOpen={showAppStoreModal}
         onClose={() => setShowAppStoreModal(false)}
         onAlert={(msg) => alert(msg)}
+      />
+
+      {/* 24/7 Rapid Emergency Dispatch Modal */}
+      {showEmergencyDispatchModal && (
+        <EmergencyDispatchModal
+          onClose={() => setShowEmergencyDispatchModal(false)}
+          currentUser={currentUser}
+          onDispatchSuccess={(emergencyProject) => {
+            setProjects((prev) => [emergencyProject, ...prev]);
+            realtimeSync.publishUpdate("projects", emergencyProject, "upsert", `🚨 Emergency Dispatch Broadcast: ${emergencyProject.title}`);
+            setActiveTab("projects");
+            setQuickFilterMode("urgent");
+          }}
+        />
+      )}
+
+      {/* Before & After Transformations Showcase Gallery Modal */}
+      {showGlobalBeforeAfterModal && (
+        <BeforeAfterShowcaseModal
+          onClose={() => setShowGlobalBeforeAfterModal(false)}
+          contractorName={currentUser?.company || currentUser?.fullName}
+          currentUser={currentUser}
+        />
+      )}
+
+      {/* Standalone Job Invoice & Estimate Generator Modal */}
+      {showGlobalInvoiceModal && (
+        <InvoiceEstimateGeneratorModal
+          onClose={() => setShowGlobalInvoiceModal(false)}
+          project={projects[0] || null}
+          contractor={currentUser?.role === "contractor" ? currentUser : null}
+          currentUser={currentUser}
+        />
+      )}
+
+      {/* Regional Material Cost & Municipal Permit Estimator Modal */}
+      {showGlobalPermitModal && (
+        <MaterialAndPermitEstimatorModal
+          onClose={() => setShowGlobalPermitModal(false)}
+          initialCity={currentCityName}
+        />
+      )}
+
+      {/* Subcontractor Crew & Day-Labor B2B Board Modal */}
+      {showGlobalCrewBoardModal && (
+        <SubcontractorCrewBoardModal
+          onClose={() => setShowGlobalCrewBoardModal(false)}
+          currentUser={currentUser}
+          onOpenChat={handleStartChat}
+        />
+      )}
+
+      {/* Central High-Converting Monetization Quick Checkout Modal */}
+      <MonetizationQuickCheckoutModal
+        isOpen={monetizationModalState.isOpen}
+        productKind={monetizationModalState.kind}
+        targetProject={monetizationModalState.targetProject}
+        currentUser={currentUser}
+        onClose={() => setMonetizationModalState({ isOpen: false, kind: "contractor_pro", targetProject: null })}
+        onSuccessPurchase={(message) => {
+          setQuickToastMessage(message);
+          setTimeout(() => setQuickToastMessage(null), 4000);
+        }}
+      />
+
+      {/* Floating Quick Action Toast Banner */}
+      {quickToastMessage && (
+        <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white font-bold text-xs px-5 py-3 rounded-2xl shadow-2xl border border-amber-500/50 flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-4 duration-300 max-w-sm sm:max-w-md text-center">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping shrink-0" />
+          <span>{quickToastMessage}</span>
+          <button
+            type="button"
+            onClick={() => setQuickToastMessage(null)}
+            className="ml-auto text-zinc-400 hover:text-white text-xs pl-2 cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
+      {/* Floating Modern Mobile Bottom Navigation Bar for Smart Viewport Adaptability */}
+      <MobileBottomNav
+        activeTab={activeTab}
+        onChangeTab={(tab) => {
+          setActiveTab(tab);
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        }}
+        onOpenPostProjectModal={() => {
+          if (!currentUser) {
+            setShowAuthModal(true);
+          } else {
+            setShowProjectModal(true);
+          }
+        }}
+        onOpenContractorProModal={() => {
+          setMonetizationModalState({
+            isOpen: true,
+            kind: "contractor_pro",
+            targetProject: null,
+          });
+        }}
+        currentUser={currentUser}
+        unreadCount={emailLogs.length}
       />
 
       {/* Offline Persistence Check and Automatic Sync Toaster */}

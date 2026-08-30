@@ -10,7 +10,7 @@ interface AuthModalProps {
 
 export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
   const [isRegister, setIsRegister] = useState(false);
-  const [role, setRole] = useState<"customer" | "contractor">("customer");
+  const [role, setRole] = useState<UserRole>("customer");
 
   // Registration states
   const [username, setUsername] = useState("");

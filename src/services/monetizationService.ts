@@ -1,4 +1,4 @@
-import { MonetizationTransaction, MonetizationProductType, PlatformMonetizationStats, Project, ContractorUser, UserRole } from "../types";
+import { MonetizationTransaction, MonetizationProductType, PlatformMonetizationStats, Project, ContractorUser, UserRole, AiManagedAdCampaign } from "../types";
 
 export interface PlatformFeeSettings {
   contractorProSubscriptionEnabled: boolean; // IN SERVICE ($29/mo)
@@ -223,6 +223,33 @@ class MonetizationService {
     };
   }
 
+  // Direct transaction recorder for immediate checkout flows
+  public recordTransaction(data: Omit<MonetizationTransaction, "id" | "timestamp"> & { timestamp?: string }): MonetizationTransaction {
+    const tx: MonetizationTransaction = {
+      id: `tx-direct-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      timestamp: data.timestamp || new Date().toISOString(),
+      ...data,
+    };
+
+    this.transactions.unshift(tx);
+    this.saveTransactions();
+
+    // Trigger mock funds addition
+    if (tx.status === "succeeded" && tx.amount > 0) {
+      try {
+        fetch("/api/stripe/mock-add-funds", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount: tx.amount, isPending: false })
+        }).catch(() => {});
+      } catch {
+        // Safe catch
+      }
+    }
+
+    return tx;
+  }
+
   // Process a Contractor Pro or Enterprise Subscription
   public async subscribeContractor(
     contractor: ContractorUser,
@@ -407,6 +434,201 @@ class MonetizationService {
     this.saveTransactions();
 
     return transaction;
+  }
+
+  // Launch AI Managed Ad Campaign for a Contractor ($49, $149, or $299)
+  public async launchAiAdCampaign(
+    contractor: ContractorUser,
+    tier: "starter" | "pro" | "enterprise",
+    trade: string,
+    targetZips: string,
+    headline: string
+  ): Promise<{ success: boolean; transaction: MonetizationTransaction; campaign: AiManagedAdCampaign }> {
+    const tierConfig = {
+      starter: {
+        price: 49.00,
+        type: "ai_ad_campaign_starter" as const,
+        title: `AI Hyper-Local Ad Blitz (Starter 7-Day - ${trade})`,
+        days: 7,
+        channels: ["Nextdoor", "Facebook Local Groups", "SMS Blast"],
+        impressions: 4200,
+        clicks: 280,
+        leads: 8,
+        multiplier: 4.8
+      },
+      pro: {
+        price: 149.00,
+        type: "ai_ad_campaign_pro" as const,
+        title: `AI Multi-Channel Growth Campaign (Pro 30-Day - ${trade})`,
+        days: 30,
+        channels: ["Google Local Services", "Meta Ads", "Nextdoor Sponsored", "SMS Drips"],
+        impressions: 16800,
+        clicks: 1140,
+        leads: 32,
+        multiplier: 7.2
+      },
+      enterprise: {
+        price: 299.00,
+        type: "ai_ad_campaign_enterprise" as const,
+        title: `AI Metro Market Dominance Campaign (Enterprise 30-Day - ${trade})`,
+        days: 30,
+        channels: ["Google LSA #1 Rank", "Meta High-Intent Video", "TikTok Local", "Nextdoor Gold", "Automated SMS Funnel"],
+        impressions: 48500,
+        clicks: 3450,
+        leads: 85,
+        multiplier: 9.4
+      }
+    };
+
+    const selected = tierConfig[tier];
+    const zipsArray = targetZips.split(",").map(s => s.trim()).filter(Boolean);
+
+    const transaction: MonetizationTransaction = {
+      id: `tx-ai-ad-${Date.now()}`,
+      userId: contractor.id,
+      userName: contractor.company || contractor.fullName,
+      userRole: "contractor",
+      productType: selected.type,
+      title: selected.title,
+      amount: selected.price,
+      currency: "USD",
+      status: "succeeded",
+      timestamp: new Date().toISOString(),
+      contractorId: contractor.id,
+      paymentMethod: "stripe_card",
+      referenceId: `ai_camp_${Math.random().toString(36).substring(2, 9)}`
+    };
+
+    this.transactions.unshift(transaction);
+    this.saveTransactions();
+
+    const campaign: AiManagedAdCampaign = {
+      id: `camp-${Date.now()}`,
+      contractorId: contractor.id,
+      contractorName: contractor.company || contractor.fullName,
+      trade,
+      targetZips: zipsArray.length > 0 ? zipsArray : ["78701", "75201"],
+      packageTier: tier,
+      status: "active",
+      budgetSpent: selected.price,
+      revenueGenerated: Math.round(selected.price * selected.multiplier),
+      impressions: selected.impressions,
+      clicks: selected.clicks,
+      leadsGenerated: selected.leads,
+      roasMultiplier: selected.multiplier,
+      channels: selected.channels,
+      startDate: new Date().toISOString(),
+      endDate: new Date(Date.now() + 86400000 * selected.days).toISOString(),
+      headline: headline || `Verified Local ${trade} Experts — Compare Direct Free Quotes`
+    };
+
+    // Save active campaign to local storage
+    try {
+      const existing = JSON.parse(localStorage.getItem("hsws_active_ai_campaigns") || "[]");
+      existing.unshift(campaign);
+      localStorage.setItem("hsws_active_ai_campaigns", JSON.stringify(existing));
+    } catch {}
+
+    // Add funds to stripe platform server
+    try {
+      await fetch("/api/stripe/mock-add-funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: selected.price, isPending: false })
+      });
+    } catch (e) {
+      console.warn("Could not sync AI ad campaign fee to stripe server balance:", e);
+    }
+
+    return {
+      success: true,
+      transaction,
+      campaign
+    };
+  }
+
+  // Purchase Sponsored Category Top Banner ($39/week)
+  public async purchaseCategoryBanner(
+    contractor: ContractorUser,
+    trade: string,
+    weeks: number = 1
+  ): Promise<{ success: boolean; transaction: MonetizationTransaction }> {
+    const amount = 39.00 * weeks;
+    const transaction: MonetizationTransaction = {
+      id: `tx-banner-${Date.now()}`,
+      userId: contractor.id,
+      userName: contractor.company || contractor.fullName,
+      userRole: "contractor",
+      productType: "sponsored_category_banner",
+      title: `Top Category Sponsor Banner (${weeks} Week${weeks > 1 ? "s" : ""} - ${trade})`,
+      amount,
+      currency: "USD",
+      status: "succeeded",
+      timestamp: new Date().toISOString(),
+      contractorId: contractor.id,
+      paymentMethod: "stripe_card",
+      referenceId: `ban_${Math.random().toString(36).substring(2, 9)}`
+    };
+
+    this.transactions.unshift(transaction);
+    this.saveTransactions();
+
+    try {
+      await fetch("/api/stripe/mock-add-funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, isPending: false })
+      });
+    } catch (e) {
+      console.warn("Could not sync banner fee:", e);
+    }
+
+    return {
+      success: true,
+      transaction
+    };
+  }
+
+  // Purchase Homeowner Urgent AI Ad & SMS Dispatch ($9.99)
+  public async purchaseUrgentJobDispatch(
+    customer: { id: string; fullName: string; role: UserRole },
+    projectId: string,
+    projectTitle: string
+  ): Promise<{ success: boolean; transaction: MonetizationTransaction }> {
+    const amount = 9.99;
+    const transaction: MonetizationTransaction = {
+      id: `tx-dispatch-${Date.now()}`,
+      userId: customer.id,
+      userName: customer.fullName,
+      userRole: customer.role,
+      productType: "homeowner_urgent_ad_dispatch",
+      title: `Instant AI SMS & Ad Broadcast ("${projectTitle.slice(0, 24)}...")`,
+      amount,
+      currency: "USD",
+      status: "succeeded",
+      timestamp: new Date().toISOString(),
+      projectId,
+      paymentMethod: "stripe_card",
+      referenceId: `dsp_${Math.random().toString(36).substring(2, 9)}`
+    };
+
+    this.transactions.unshift(transaction);
+    this.saveTransactions();
+
+    try {
+      await fetch("/api/stripe/mock-add-funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, isPending: false })
+      });
+    } catch (e) {
+      console.warn("Could not sync dispatch fee:", e);
+    }
+
+    return {
+      success: true,
+      transaction
+    };
   }
 }
 

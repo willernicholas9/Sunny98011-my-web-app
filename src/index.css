@@ -40,7 +40,7 @@
   letter-spacing: -0.015em !important;
   color: #09090b !important; /* Max contrast heading titles */
 }
-.senior-mode .text-xs, .senior-mode .text-[11px], .senior-mode .text-[10px] {
+.senior-mode .text-xs, .senior-mode .text-\[11px\], .senior-mode .text-\[10px\] {
   font-size: 0.85rem !important; /* Boost micro-captions */
 }
 

@@ -11,9 +11,15 @@ import AiAdCreativeStudio from "./outreach/AiAdCreativeStudio";
 import LiveLeadStreamVisualizer from "./outreach/LiveLeadStreamVisualizer";
 import WeatherTriggerEngine from "./outreach/WeatherTriggerEngine";
 import PrintableDoorHangerModal from "./outreach/PrintableDoorHangerModal";
+import AgentZipCodeSearchBox from "./outreach/AgentZipCodeSearchBox";
+import SocialPlatformIntegrationHub from "./outreach/SocialPlatformIntegrationHub";
+import HotSpotWorkshopFacebookPage from "./outreach/HotSpotWorkshopFacebookPage";
+import { autonomousAdWorker } from "../services/autonomousAdWorker";
 
 interface AutonomousAdInstallerAgentProps {
   appUrl?: string;
+  onNavigateToProjects?: () => void;
+  onNavigateToContractors?: () => void;
 }
 
 interface LogEntry {
@@ -25,28 +31,25 @@ interface LogEntry {
 }
 
 export default function AutonomousAdInstallerAgent({
-  appUrl = window.location.origin
+  appUrl = window.location.origin,
+  onNavigateToProjects,
+  onNavigateToContractors,
 }: AutonomousAdInstallerAgentProps) {
-  const [agentRunning, setAgentRunning] = useState(false);
-  const [dailyBudget, setDailyBudget] = useState(50);
-  const [targetZips, setTargetZips] = useState("90210, 30301, 60601, 75001, 98101");
-  const [zipsSaved, setZipsSaved] = useState(false);
+  const [agentViewTab, setAgentViewTab] = useState<"facebook_page" | "daemon_system" | "creative_studio" | "weather_sensor" | "lead_stream" | "usa_resources">("facebook_page");
+  const [agentRunning, setAgentRunning] = useState(() => autonomousAdWorker.getState().agentRunning);
+  const [dailyBudget, setDailyBudget] = useState(() => autonomousAdWorker.getState().dailyBudget);
+  const [targetZips, setTargetZips] = useState<string>(() => {
+    try {
+      const stored = localStorage.getItem("hsws_ad_target_zips");
+      if (stored && stored.trim()) return stored;
+    } catch {}
+    return autonomousAdWorker.getState().targetZips || "78701, 75201, 77001, 76102, 60601, 63101, 55401, 37201, 73101";
+  });
   const [isDoorHangerModalOpen, setIsDoorHangerModalOpen] = useState(false);
 
-  const handleSaveZips = () => {
-    try {
-      localStorage.setItem("hsws_ad_target_zips", targetZips);
-    } catch {}
-    setZipsSaved(true);
-    setTimeout(() => setZipsSaved(false), 3000);
-  };
-  const [selectedChannels, setSelectedChannels] = useState<{ [key: string]: boolean }>({
-    nextdoor: true,
-    facebook: true,
-    sms_broadcast: true,
-    google_local: true,
-    local_radio: false,
-  });
+  const [selectedChannels, setSelectedChannels] = useState<{ [key: string]: boolean }>(
+    () => autonomousAdWorker.getState().selectedChannels
+  );
 
   const [installStatus, setInstallStatus] = useState<"installed" | "ready" | "downloading">("ready");
   const [autoStartOS, setAutoStartOS] = useState(true);
@@ -56,7 +59,7 @@ export default function AutonomousAdInstallerAgent({
   const [copiedTemplateId, setCopiedTemplateId] = useState<string | null>(null);
   const [activeResourceTab, setActiveResourceTab] = useState<"all_states" | "ad_copy" | "flyers" | "press_release" | "campaign_checklist">("all_states");
 
-  const US_REGION_PRESETS = {
+  const US_REGION_PRESETS: Record<string, string> = {
     "⭐ Central US (TX, IL, MO, MN, TN, OK - Preferred CT Zone)": "78701, 75201, 77001, 60601, 63101, 55401, 37201, 73101",
     "Midwest & Central (IL, MI, OH, WI, MN, MO)": "60601, 48201, 44101, 53201, 55401, 63101",
     "Southwest (TX, AZ, OK, NM)": "78701, 75201, 77001, 85001, 73101, 87101",
@@ -66,40 +69,67 @@ export default function AutonomousAdInstallerAgent({
     "🔥 All 50 US States Top Metros": "78701, 75201, 60601, 77001, 85001, 10001, 90210, 19101, 78201, 92101, 30301, 33101, 98101, 80201, 20001, 02108, 48201, 37201, 55401, 70112"
   };
 
+  const handleApplyPresetZips = (zipString: string) => {
+    setTargetZips(zipString);
+    autonomousAdWorker.saveTargetZips(zipString);
+  };
+
+  const [simulatedStats, setSimulatedStats] = useState(() => autonomousAdWorker.getState().stats);
+  const [logs, setLogs] = useState<LogEntry[]>(() => {
+    const workerLogs = autonomousAdWorker.getState().logs;
+    if (workerLogs && workerLogs.length > 0) {
+      return workerLogs.map(l => ({
+        id: l.id,
+        timestamp: l.timestamp,
+        type: l.type as any,
+        message: l.message,
+        status: l.status
+      }));
+    }
+    return [
+      {
+        id: "log-1",
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+        type: "system_audit",
+        message: "24/7 Autonomous Daemon active. Target ZIP codes locked into background persistent storage.",
+        status: "success"
+      }
+    ];
+  });
+
+  // Reconcile and subscribe to autonomous 24/7 background worker
+  useEffect(() => {
+    autonomousAdWorker.reconcileOfflineCatchupWork();
+
+    const unsubscribe = autonomousAdWorker.subscribe((state) => {
+      setAgentRunning(state.agentRunning);
+      setDailyBudget(state.dailyBudget);
+      setSelectedChannels(state.selectedChannels);
+      setSimulatedStats(state.stats);
+      if (state.logs && state.logs.length > 0) {
+        setLogs(state.logs.map(l => ({
+          id: l.id,
+          timestamp: l.timestamp,
+          type: l.type as any,
+          message: l.message,
+          status: l.status
+        })));
+      }
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
   const handleCopyText = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
     setCopiedTemplateId(id);
     setTimeout(() => setCopiedTemplateId(null), 3000);
   };
 
-  const handleApplyPresetZips = (zipString: string) => {
-    setTargetZips(zipString);
-    localStorage.setItem("hsws_ad_target_zips", zipString);
-    setZipsSaved(true);
-    setTimeout(() => setZipsSaved(false), 3000);
-  };
-
   const handleInjectCampaignToQueue = (campaignData: any) => {
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    setAgentRunning(true);
-    setLogs(prev => [
-      {
-        id: `log-${Date.now()}-ai-inject`,
-        timestamp,
-        type: "ad_broadcast",
-        message: `✨ [Gemini AI Campaign Deployed]: Broadcasted "${campaignData.headline}" across active channels. Multi-channel queue prioritized.`,
-        status: "success"
-      },
-      ...prev
-    ].slice(0, 30));
-
-    setSimulatedStats(prev => ({
-      ...prev,
-      impressions: prev.impressions + 340,
-      clicks: prev.clicks + 28,
-      installs: prev.installs + 4,
-      activeBidsGenerated: prev.activeBidsGenerated + 2,
-    }));
+    autonomousAdWorker.injectCampaign(campaignData.headline || "Seasonal Special", "Home Improvement");
   };
 
   const handleApplyWeatherBlitz = (weatherData: {
@@ -108,134 +138,12 @@ export default function AutonomousAdInstallerAgent({
     zips: string;
     headline: string;
   }) => {
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
     setTargetZips(weatherData.zips);
-    localStorage.setItem("hsws_ad_target_zips", weatherData.zips);
-    setZipsSaved(true);
-    setAgentRunning(true);
-
-    setLogs(prev => [
-      {
-        id: `log-${Date.now()}-weather`,
-        timestamp,
-        type: "optimization",
-        message: `⚡ [Autonomous Weather Sensor Triggered]: "${weatherData.event}". Shifted ad focus to ${weatherData.trade} across target zips (${weatherData.zips}).`,
-        status: "success"
-      },
-      ...prev
-    ].slice(0, 30));
+    autonomousAdWorker.applyWeatherBlitz(weatherData);
   };
 
-  const [simulatedStats, setSimulatedStats] = useState({
-    impressions: 14250,
-    clicks: 842,
-    installs: 194,
-    activeBidsGenerated: 68,
-    costPerInstall: 2.58,
-  });
-
-  const [logs, setLogs] = useState<LogEntry[]>([
-    {
-      id: "log-1",
-      timestamp: new Date(Date.now() - 180000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      type: "system_audit",
-      message: "System environment verified. Service Worker active. Offline cache initialized with 42 contractor profiles.",
-      status: "success"
-    },
-    {
-      id: "log-2",
-      timestamp: new Date(Date.now() - 120000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      type: "optimization",
-      message: "AI Ad Engine analyzed Central US weather patterns: High wind detected in 75201 (Dallas/Central). Prioritizing Roofing & Gutter repair ads.",
-      status: "info"
-    },
-    {
-      id: "log-3",
-      timestamp: new Date(Date.now() - 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      type: "ad_broadcast",
-      message: "Dispatched 250 localized SMS app-install invitations to verified local contractors in Central zone zip 78701 (Austin, TX).",
-      status: "success"
-    },
-    {
-      id: "log-4",
-      timestamp: new Date(Date.now() - 15000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-      type: "system_install",
-      message: "+4 new independent system installations registered on desktop terminals & field iPads.",
-      status: "success"
-    }
-  ]);
-
-  // Simulate autonomous agent activity when running
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (agentRunning) {
-      interval = setInterval(() => {
-        const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-        const randomAction = Math.random();
-        
-        let newLog: LogEntry;
-        if (randomAction < 0.4) {
-          const zips = targetZips.split(",").map(s => s.trim()).filter(Boolean);
-          const zip = zips[Math.floor(Math.random() * zips.length)] || "90210";
-          newLog = {
-            id: `log-${Date.now()}`,
-            timestamp,
-            type: "ad_broadcast",
-            message: `[AI Ad Bot] Automatically posted seasonal homeowner repair spotlight to Nextdoor & Facebook groups in Zip ${zip}.`,
-            status: "success"
-          };
-          setSimulatedStats(prev => ({
-            ...prev,
-            impressions: prev.impressions + Math.floor(Math.random() * 80) + 20,
-            clicks: prev.clicks + Math.floor(Math.random() * 6) + 1,
-            installs: prev.installs + (Math.random() > 0.6 ? 1 : 0),
-          }));
-        } else if (randomAction < 0.7) {
-          newLog = {
-            id: `log-${Date.now()}`,
-            timestamp,
-            type: "system_install",
-            message: `[System Installer] Independent PWA system install confirmed from Nextdoor referral link. Offline cache synced.`,
-            status: "success"
-          };
-          setSimulatedStats(prev => ({
-            ...prev,
-            installs: prev.installs + 1,
-            activeBidsGenerated: prev.activeBidsGenerated + (Math.random() > 0.5 ? 1 : 0),
-          }));
-        } else {
-          newLog = {
-            id: `log-${Date.now()}`,
-            timestamp,
-            type: "optimization",
-            message: `[AI Optimizer] Real-time budget adjustment: reallocating $4.50 from Google Local to SMS Contractor outreach for 28% higher conversion.`,
-            status: "info"
-          };
-        }
-
-        setLogs(prev => [newLog, ...prev].slice(0, 30));
-      }, 4000);
-    }
-    return () => clearInterval(interval);
-  }, [agentRunning, targetZips]);
-
   const handleTriggerInstantBroadcast = () => {
-    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-    const newLog: LogEntry = {
-      id: `log-${Date.now()}`,
-      timestamp,
-      type: "ad_broadcast",
-      message: `⚡ [MANUAL OVERRIDE] Instant advertising blitz dispatched across all ${Object.keys(selectedChannels).filter(k => selectedChannels[k]).length} active channels!`,
-      status: "success"
-    };
-    setLogs(prev => [newLog, ...prev]);
-    setSimulatedStats(prev => ({
-      ...prev,
-      impressions: prev.impressions + 450,
-      clicks: prev.clicks + 38,
-      installs: prev.installs + 5,
-      activeBidsGenerated: prev.activeBidsGenerated + 2,
-    }));
+    autonomousAdWorker.injectCampaign("Instant Blitz Outreach", "General Home Repair");
   };
 
   const handleSimulateSystemInstall = () => {
@@ -258,7 +166,7 @@ export default function AutonomousAdInstallerAgent({
   };
 
   const toggleChannel = (channel: string) => {
-    setSelectedChannels(prev => ({ ...prev, [channel]: !prev[channel] }));
+    autonomousAdWorker.toggleChannel(channel);
   };
 
   return (
@@ -290,7 +198,7 @@ export default function AutonomousAdInstallerAgent({
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
             <button
-              onClick={() => setAgentRunning(!agentRunning)}
+              onClick={() => autonomousAdWorker.setAgentRunning(!agentRunning)}
               className={`px-6 py-3.5 rounded-2xl font-black text-sm flex items-center gap-2.5 transition shadow-lg cursor-pointer ${
                 agentRunning
                   ? "bg-red-600 hover:bg-red-700 text-white shadow-red-900/30"
@@ -376,6 +284,54 @@ export default function AutonomousAdInstallerAgent({
         </div>
       </div>
 
+      {/* --- AI AGENT SUITE SUB-NAVIGATION BAR --- */}
+      <div className="bg-white rounded-2xl border border-zinc-200 p-2 shadow-xs flex items-center gap-1.5 overflow-x-auto" id="ai-agent-sub-nav">
+        {[
+          { id: "facebook_page", label: "📘 HOT SPOT WORK SHOP (Facebook Page)", badge: "Official AI Agent", highlight: true },
+          { id: "daemon_system", label: "🤖 24/7 Ad Daemon & System Installer", badge: agentRunning ? "Running" : "Paused" },
+          { id: "creative_studio", label: "🎨 AI Ad Studio (Gemini 3.7 Flash)", badge: "New" },
+          { id: "weather_sensor", label: "⚡ Weather Demand Sensor", badge: "Live Radar" },
+          { id: "lead_stream", label: "📈 Live Lead Stream", badge: `${simulatedStats.clicks} clicks` },
+          { id: "usa_resources", label: "🇺🇸 50-State Distribution Kit", badge: "50 States" },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            type="button"
+            onClick={() => setAgentViewTab(tab.id as any)}
+            className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
+              agentViewTab === tab.id
+                ? tab.highlight 
+                  ? "bg-[#1877F2] text-white shadow-md"
+                  : "bg-blue-900 text-white shadow-md"
+                : "bg-zinc-50 hover:bg-zinc-100 text-zinc-700 hover:text-zinc-950 border border-zinc-200"
+            }`}
+          >
+            <span>{tab.label}</span>
+            {tab.badge && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase ${
+                agentViewTab === tab.id
+                  ? "bg-white/20 text-white"
+                  : "bg-zinc-200 text-zinc-700"
+              }`}>
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* --- SUBVIEW 1: HOT SPOT WORK SHOP FACEBOOK PAGE --- */}
+      {agentViewTab === "facebook_page" && (
+        <HotSpotWorkshopFacebookPage
+          appUrl={appUrl}
+          onNavigateToProjects={onNavigateToProjects}
+          onNavigateToContractors={onNavigateToContractors}
+        />
+      )}
+
+      {/* --- SUBVIEW 2: DAEMON & SYSTEM INSTALLER --- */}
+      {agentViewTab === "daemon_system" && (
+      <div className="space-y-8">
       {/* Main Grid: Left Column (System Installer & Ad Config), Right Column (Live Console Log) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         
@@ -538,68 +494,13 @@ export default function AutonomousAdInstallerAgent({
               </span>
             </div>
 
-            {/* Target Zip Codes Input */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label className="block text-xs font-extrabold text-zinc-900 uppercase tracking-wider">
-                  Target Regional Zip Codes (Comma Separated)
-                </label>
-                {zipsSaved && (
-                  <span className="text-[10px] font-extrabold text-emerald-600 flex items-center gap-1 animate-in fade-in">
-                    <Check className="w-3 h-3" /> Target Zips Saved
-                  </span>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <div className="relative flex-1">
-                  <input
-                    type="text"
-                    value={targetZips}
-                    onChange={(e) => {
-                      setTargetZips(e.target.value);
-                      if (zipsSaved) setZipsSaved(false);
-                    }}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleSaveZips();
-                      }
-                    }}
-                    placeholder="e.g. 90210, 30301, 60601, 75001"
-                    className="w-full bg-zinc-50 border border-zinc-300 rounded-xl p-3 text-xs font-mono font-bold text-zinc-900 focus:ring-2 focus:ring-red-500 focus:outline-hidden"
-                    id="ad-target-zips-input"
-                  />
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] bg-zinc-200 text-zinc-700 font-bold px-2 py-0.5 rounded-md pointer-events-none">
-                    {targetZips.split(",").filter(s => s.trim()).length} Active Zones
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleSaveZips}
-                  className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-3xs shrink-0 ${
-                    zipsSaved
-                      ? "bg-emerald-600 text-white border border-emerald-700"
-                      : "bg-red-600 hover:bg-red-700 text-white border border-red-700"
-                  }`}
-                  id="save-ad-target-zips-btn"
-                  data-testid="save-ad-target-zips-btn"
-                  title="Save Target Zip Codes"
-                >
-                  {zipsSaved ? (
-                    <>
-                      <Check className="w-3.5 h-3.5" /> Saved
-                    </>
-                  ) : (
-                    <>
-                      <Save className="w-3.5 h-3.5" /> Save
-                    </>
-                  )}
-                </button>
-              </div>
-              <p className="text-[11px] text-zinc-500">
-                The AI agent scans weather forecasts and building permits in these zip codes to time ads when homeowner repair demand peaks.
-              </p>
-            </div>
+            {/* Section 2.1: Dedicated AI Agent ZIP Code Search & Target Box with 24/7 Persistent Storage */}
+            <AgentZipCodeSearchBox
+              initialZips={targetZips}
+              onZipsChange={(newZipStr) => {
+                setTargetZips(newZipStr);
+              }}
+            />
 
             {/* Channel Matrix */}
             <div className="space-y-3">
@@ -779,25 +680,53 @@ export default function AutonomousAdInstallerAgent({
 
       </div>
 
+      {/* 🚀 FACEBOOK META GRAPH API, NEXTDOOR ADS & 1-CLICK ZAPIER AUTOMATION HUB */}
+      <SocialPlatformIntegrationHub
+        targetZips={targetZips}
+        appUrl={appUrl}
+        onBroadcastSuccess={(msg) => {
+          const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+          setLogs(prev => [
+            {
+              id: `log-disp-${Date.now()}`,
+              timestamp,
+              type: "ad_broadcast",
+              message: `🚀 [Live Social Dispatch]: ${msg}`,
+              status: "success"
+            },
+            ...prev
+          ]);
+        }}
+      />
+      </div>
+      )}
+
       {/* ✨ 1. GEMINI 3.7 FLASH AI GENERATIVE OUTREACH & AD STUDIO */}
+      {agentViewTab === "creative_studio" && (
       <AiAdCreativeStudio
         appUrl={appUrl}
         onInjectCampaignToQueue={handleInjectCampaignToQueue}
         targetZips={targetZips}
       />
+      )}
 
       {/* ⚡ 2. AUTONOMOUS SEVERE WEATHER & REPAIR DEMAND SENSOR */}
+      {agentViewTab === "weather_sensor" && (
       <WeatherTriggerEngine
         onApplyWeatherBlitz={handleApplyWeatherBlitz}
       />
+      )}
 
       {/* 📈 3. REAL-TIME CUSTOMER INBOUND & CONVERSION FUNNEL STREAM */}
+      {agentViewTab === "lead_stream" && (
       <LiveLeadStreamVisualizer
         agentRunning={agentRunning}
         dailyBudget={dailyBudget}
       />
+      )}
 
       {/* 🇺🇸 NATIONWIDE USA ADVERTISING & MARKETING RESOURCE HUB */}
+      {agentViewTab === "usa_resources" && (
       <div className="bg-white border border-blue-900/20 rounded-3xl p-6 sm:p-8 shadow-xl space-y-6" id="usa-advertising-resource-hub">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-zinc-200 pb-6">
           <div className="space-y-1">
@@ -1211,6 +1140,7 @@ Homeowners and contractors can access the network directly at: ${appUrl}
           </div>
         )}
       </div>
+      )}
 
       {/* Printable Door Hanger & Postcard Modal */}
       <PrintableDoorHangerModal

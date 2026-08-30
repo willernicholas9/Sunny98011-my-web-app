@@ -8,7 +8,7 @@ interface DashboardStatsProps {
   bids: Bid[];
 }
 
-export default function DashboardStats({ currentUser, projects, bids }: DashboardStatsProps) {
+function DashboardStatsComponent({ currentUser, projects, bids }: DashboardStatsProps) {
   if (!currentUser) return null;
 
   const isCustomer = currentUser.role === "customer";
@@ -165,3 +165,6 @@ export default function DashboardStats({ currentUser, projects, bids }: Dashboar
     </div>
   );
 }
+
+export default React.memo(DashboardStatsComponent);
+
