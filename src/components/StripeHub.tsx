@@ -63,7 +63,13 @@ export default function StripeHub({
   const [bankName, setBankName] = useState("Chase Bank N.A.");
   const [routingNumber, setRoutingNumber] = useState("021000021");
   const [accountNumber, setAccountNumber] = useState("1234567890");
-  const [stripeStatusInfo, setStripeStatusInfo] = useState<{ configured: boolean; publishableKey: string } | null>(null);
+  const [stripeStatusInfo, setStripeStatusInfo] = useState<{
+    configured: boolean;
+    hasRawSecretSet?: boolean;
+    isPlaceholderSecret?: boolean;
+    publishableKey: string;
+    hasValidPubKey?: boolean;
+  } | null>(null);
 
   // --- INVOICE GENERATOR STATES & SYSTEM ---
   const SIMULATED_COMPLETED_PROJECTS = [
@@ -459,6 +465,24 @@ export default function StripeHub({
           </button>
         </div>
       </div>
+
+      {/* Stripe Key Notice Banner */}
+      {stripeStatusInfo?.isPlaceholderSecret && (
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-start gap-3 text-amber-200" id="stripe-key-notice-banner">
+          <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-1 text-xs">
+            <p className="font-bold text-amber-300">
+              Stripe Publishable Key Active • Secret Key Requires Action
+            </p>
+            <p className="text-zinc-300 leading-relaxed">
+              Your publishable key (<code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-300 font-mono text-[11px]">{stripeStatusInfo.publishableKey ? `${stripeStatusInfo.publishableKey.slice(0, 14)}...` : ""}</code>) is recognized. However, your <code className="bg-zinc-800 px-1 py-0.5 rounded text-amber-300 font-mono text-[11px]">STRIPE_SECRET_KEY</code> is currently set to the literal variable name rather than your secret key.
+            </p>
+            <p className="text-zinc-400 leading-relaxed">
+              To process live or test cards via Stripe, open <strong>Settings</strong> and paste your actual secret key starting with <code className="bg-zinc-850 text-white px-1 rounded font-mono">sk_test_...</code> or <code className="bg-zinc-850 text-white px-1 rounded font-mono">sk_live_...</code>. In the meantime, safe interactive sandbox simulation is fully active!
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Where Is The Money Getting Transferred? - Explicit Flow Breakdown */}
       <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-blue-950 border border-blue-800 rounded-2xl p-5 text-white shadow-md space-y-4" id="money-transfer-breakdown-card">

@@ -6,10 +6,15 @@ export default function FloatingScrollTopButton() {
 
   useEffect(() => {
     let ticking = false;
+    let lastVisible = false;
     const handleScroll = () => {
       if (!ticking) {
         window.requestAnimationFrame(() => {
-          setIsVisible(window.scrollY > 400);
+          const shouldShow = window.scrollY > 400;
+          if (shouldShow !== lastVisible) {
+            lastVisible = shouldShow;
+            setIsVisible(shouldShow);
+          }
           ticking = false;
         });
         ticking = true;

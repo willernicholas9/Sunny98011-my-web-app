@@ -106,19 +106,42 @@ async function generateGeminiContentWithFallback(
   throw lastErr;
 }
 
-// Lazy-initialize stripe helper safely
-let stripeClient: Stripe | null = null;
-function getStripe(): Stripe | null {
+// Helper to validate and get real Stripe secret key
+function getStripeSecretKey(): string | null {
   const key = 
     process.env.STRIPE_SECRET_KEY || 
     process.env.STRIPE_API_KEY || 
     process.env.STRIPE_KEY || 
     process.env.STRIPE_SECRET;
   if (!key) return null;
+  const trimmed = key.trim();
+  // Valid Stripe secret keys start with sk_test_, sk_live_, rk_test_, rk_live_
+  // If user entered the env var name itself "STRIPE_SECRET_KEY" or placeholder, it's not a real key
+  if (
+    trimmed === "STRIPE_SECRET_KEY" ||
+    trimmed.startsWith("STRIPE_") ||
+    trimmed.includes("YOUR_") ||
+    trimmed.includes("placeholder") ||
+    (!trimmed.startsWith("sk_") && !trimmed.startsWith("rk_"))
+  ) {
+    return null;
+  }
+  return trimmed;
+}
+
+// Lazy-initialize stripe helper safely
+let stripeClient: Stripe | null = null;
+function getStripe(): Stripe | null {
+  const key = getStripeSecretKey();
+  if (!key) return null;
   if (!stripeClient) {
-    stripeClient = new Stripe(key, {
-      apiVersion: "2023-10-16" as any, // Standard stable api version
-    });
+    try {
+      stripeClient = new Stripe(key, {
+        apiVersion: "2023-10-16" as any, // Standard stable api version
+      });
+    } catch {
+      return null;
+    }
   }
   return stripeClient;
 }
@@ -1375,15 +1398,29 @@ Generate a hyper-local, high-converting, viral acquisition sprint package in val
 app.get("/api/stripe/status", (req, res) => {
   const stripe = getStripe();
   const realKeyConfigured = !!stripe;
-  const pubKey = 
+  const rawSecret = (
+    process.env.STRIPE_SECRET_KEY || 
+    process.env.STRIPE_API_KEY || 
+    process.env.STRIPE_KEY || 
+    process.env.STRIPE_SECRET || 
+    ""
+  ).trim();
+  const isPlaceholderSecret = rawSecret === "STRIPE_SECRET_KEY" || (rawSecret.length > 0 && !rawSecret.startsWith("sk_") && !rawSecret.startsWith("rk_"));
+  const pubKey = (
     process.env.VITE_STRIPE_PUBLISHABLE_KEY || 
     process.env.STRIPE_PUBLISHABLE_KEY || 
     process.env.STRIPE_PUBLIC_KEY || 
     process.env.STRIPE_KEY_PUBLIC || 
-    "";
+    ""
+  ).trim();
+  const hasValidPubKey = pubKey.startsWith("pk_");
+
   res.json({
     configured: realKeyConfigured,
+    hasRawSecretSet: !!rawSecret,
+    isPlaceholderSecret: isPlaceholderSecret,
     publishableKey: pubKey,
+    hasValidPubKey: hasValidPubKey,
     connectedStatus: mockStripeDb.connectedStatus,
     bankName: mockStripeDb.connectedBankName,
     last4: mockStripeDb.connectedAccountLast4,
@@ -1465,7 +1502,19 @@ app.get("/api/stripe/balance", async (req, res) => {
         payoutHistory: mockStripeDb.payoutHistory,
       });
     } catch (err: any) {
-      return res.status(500).json({ error: err.message });
+      console.warn("[STRIPE BALANCE ERROR]", err.message);
+      return res.json({
+        realMode: false,
+        warning: err.message,
+        availableBalance: mockStripeDb.availableBalance,
+        pendingBalance: mockStripeDb.pendingBalance,
+        connectedStatus: mockStripeDb.connectedStatus,
+        bankName: mockStripeDb.connectedBankName,
+        last4: mockStripeDb.connectedAccountLast4,
+        routingLast4: mockStripeDb.connectedRoutingLast4,
+        payoutSchedule: mockStripeDb.payoutSchedule,
+        payoutHistory: mockStripeDb.payoutHistory,
+      });
     }
   } else {
     // Return mock database state

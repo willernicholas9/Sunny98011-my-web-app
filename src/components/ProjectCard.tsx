@@ -111,7 +111,6 @@ function ProjectCardComponent({
 
   useEffect(() => {
     if (typeof externalIsFavorite === "boolean") {
-      setLocalIsFavorite(externalIsFavorite);
       return;
     }
     const handleStorageUpdate = (e: any) => {
@@ -299,25 +298,6 @@ function ProjectCardComponent({
       description: "Job completed to client satisfaction and escrowed funds released to contractor.",
     },
   ];
-
-  const [projectStep, setProjectStep] = useState<number>(() => {
-    if (project.status === "completed") return 3;
-    if (project.status === "accepted") {
-      if (project.agreedByCustomer && project.agreedByContractor) return 2;
-      return 1;
-    }
-    return 0;
-  });
-
-  useEffect(() => {
-    if (project.status === "completed") setProjectStep(3);
-    else if (project.status === "accepted") {
-      if (project.agreedByCustomer && project.agreedByContractor) setProjectStep(2);
-      else setProjectStep(1);
-    } else {
-      setProjectStep(0);
-    }
-  }, [project.status, project.agreedByCustomer, project.agreedByContractor]);
 
   const isOwner = currentUser && currentUser.id === project.customerId;
   const isAcceptedContractor = currentUser && currentUser.id === project.acceptedContractorId;
@@ -584,7 +564,14 @@ function ProjectCardComponent({
                       title={tag ? `${tag} (Click to expand)` : "Click to expand photo"}
                     >
                       <div className="w-16 h-14 bg-zinc-100">
-                        <img src={img} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover group-hover/thumb:scale-105 transition" referrerPolicy="no-referrer" />
+                        <img
+                          src={img}
+                          alt={`Preview ${idx + 1}`}
+                          className="w-full h-full object-cover group-hover/thumb:scale-105 transition"
+                          referrerPolicy="no-referrer"
+                          loading="lazy"
+                          decoding="async"
+                        />
                       </div>
                       {tag && (
                         <div className="absolute bottom-0 inset-x-0 bg-black/70 text-white text-[9px] font-bold px-1 py-0.5 truncate text-center">
@@ -1373,4 +1360,16 @@ function ProjectCardComponent({
   );
 }
 
-export default React.memo(ProjectCardComponent);
+export default React.memo(ProjectCardComponent, (prev, next) => {
+  return (
+    prev.project === next.project &&
+    prev.bids === next.bids &&
+    prev.isFavorite === next.isFavorite &&
+    prev.currentUser?.id === next.currentUser?.id &&
+    prev.currentUser?.role === next.currentUser?.role &&
+    prev.currentUser?.isPro === next.currentUser?.isPro &&
+    prev.currentUser?.isPlatformOwner === next.currentUser?.isPlatformOwner &&
+    prev.currentCityName === next.currentCityName &&
+    prev.distanceToProject === next.distanceToProject
+  );
+});

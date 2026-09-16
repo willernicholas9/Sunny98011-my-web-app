@@ -252,53 +252,22 @@ export default function App() {
   });
 
   // Sync to LocalStorage
+  // Debounced LocalStorage Sync to eliminate main-thread blocking and scroll delays
   useEffect(() => {
-    try {
-      localStorage.setItem("hsws_currentUser", JSON.stringify(currentUser));
-    } catch {}
-  }, [currentUser]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("hsws_projects", JSON.stringify(projects));
-    } catch {}
-  }, [projects]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("hsws_bids", JSON.stringify(bids));
-    } catch {}
-  }, [bids]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("hsws_contractors", JSON.stringify(contractors));
-    } catch {}
-  }, [contractors]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("hsws_emailLogs", JSON.stringify(emailLogs));
-    } catch {}
-  }, [emailLogs]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("hsws_private_messages", JSON.stringify(privateMessages));
-    } catch {}
-  }, [privateMessages]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("hsws_allCities", JSON.stringify(allCities));
-    } catch {}
-  }, [allCities]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("hsws_seniorMode", JSON.stringify(seniorMode));
-    } catch {}
-  }, [seniorMode]);
+    const timer = setTimeout(() => {
+      try {
+        localStorage.setItem("hsws_currentUser", JSON.stringify(currentUser));
+        localStorage.setItem("hsws_projects", JSON.stringify(projects));
+        localStorage.setItem("hsws_bids", JSON.stringify(bids));
+        localStorage.setItem("hsws_contractors", JSON.stringify(contractors));
+        localStorage.setItem("hsws_emailLogs", JSON.stringify(emailLogs));
+        localStorage.setItem("hsws_private_messages", JSON.stringify(privateMessages));
+        localStorage.setItem("hsws_allCities", JSON.stringify(allCities));
+        localStorage.setItem("hsws_seniorMode", JSON.stringify(seniorMode));
+      } catch {}
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [currentUser, projects, bids, contractors, emailLogs, privateMessages, allCities, seniorMode]);
 
   // Push notifications automatic dismissal timer
   useEffect(() => {
@@ -1520,7 +1489,7 @@ export default function App() {
         return aDist - bDist;
       }
       if (sortBy === "newest") {
-        return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        return (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0);
       }
       return 0;
     });
