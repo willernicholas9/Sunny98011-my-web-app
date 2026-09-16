@@ -246,8 +246,9 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
               <button
                 type="button"
                 onClick={() => {
+                  const currentOwnerPass = localStorage.getItem("hsws_owner_password") || "ownerpass123";
                   setUsername("nwiller9185");
-                  setPassword("ownerpass123");
+                  setPassword(currentOwnerPass);
                   setRole("owner" as UserRole);
                 }}
                 className="text-[11px] font-extrabold text-amber-700 hover:text-amber-800 bg-amber-100 hover:bg-amber-200 border border-amber-300 px-2.5 py-1 rounded-lg transition flex items-center gap-1 cursor-pointer"

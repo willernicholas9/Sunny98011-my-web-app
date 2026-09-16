@@ -17,9 +17,41 @@
 }
 
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    overflow-anchor: auto;
+  }
+
   body {
     @apply font-sans bg-zinc-50 text-zinc-900 selection:bg-amber-100 antialiased;
+    -webkit-overflow-scrolling: touch;
+    text-rendering: optimizeSpeed;
   }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Touch & Smooth Scrolling Enhancements */
+.touch-scroll-x {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  overscroll-behavior-x: contain;
+}
+
+.touch-scroll-y {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
 
 /* Senior Accessibility Mode Typography Scaling */

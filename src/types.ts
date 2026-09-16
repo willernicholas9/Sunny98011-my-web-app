@@ -294,6 +294,7 @@ export type MonetizationProductType =
   | "project_priority_boost" // $9.99
   | "project_emergency_rush" // $19.99
   | "escrow_protection_warranty" // $4.99
+  | "lead_unlock_single" // $15.00 single lead unlock
   | "lead_credits_pack_small" // $15.00 (5 leads)
   | "lead_credits_pack_medium" // $49.00 (20 leads)
   | "lead_credits_pack_large" // $99.00 (50 leads)

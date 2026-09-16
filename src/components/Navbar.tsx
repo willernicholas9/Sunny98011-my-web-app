@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Hammer, CircleAlert, Mail, LogOut, LogIn, HardHat, Bot, Wifi, WifiOff, Cloud, RefreshCw, Crown, Smartphone, Apple } from "lucide-react";
+import { Hammer, CircleAlert, Mail, LogOut, LogIn, HardHat, Bot, Wifi, WifiOff, Cloud, RefreshCw, Crown, Smartphone, Apple, Flame, Target } from "lucide-react";
 import { persistenceCheck } from "../services/persistenceCheck";
 import { PersistenceState } from "../types/persistenceTypes";
+import { acquisitionSprintService } from "../services/acquisitionSprintService";
 
 export type TabType = "spiral_game" | "projects" | "contractors" | "rebates" | "my_dashboard" | "stripe_hub" | "outreach" | "ai_agent" | "owner_suite" | "monetize";
 
@@ -14,6 +15,7 @@ interface NavbarProps {
   onToggleEmailLog: () => void;
   emailCount: number;
   onOpenAppStoreModal?: () => void;
+  onOpenSprintModal?: () => void;
 }
 
 export default function Navbar({
@@ -25,17 +27,59 @@ export default function Navbar({
   onToggleEmailLog,
   emailCount,
   onOpenAppStoreModal,
+  onOpenSprintModal,
 }: NavbarProps) {
   const [persistenceState, setPersistenceState] = useState<PersistenceState>(persistenceCheck.getState());
+  const [sprintTotal, setSprintTotal] = useState<number>(() => acquisitionSprintService.getState().totalAcquired);
 
   useEffect(() => {
-    const unsub = persistenceCheck.subscribe((st) => {
+    const unsubPersistence = persistenceCheck.subscribe((st) => {
       setPersistenceState(st);
     });
-    return () => unsub();
+    const unsubSprint = acquisitionSprintService.subscribe((st) => {
+      setSprintTotal(st.totalAcquired);
+    });
+
+    const handleNetworkChange = () => {
+      setPersistenceState(persistenceCheck.getState());
+    };
+
+    window.addEventListener("online", handleNetworkChange);
+    window.addEventListener("offline", handleNetworkChange);
+
+    return () => {
+      unsubPersistence();
+      unsubSprint();
+      window.removeEventListener("online", handleNetworkChange);
+      window.removeEventListener("offline", handleNetworkChange);
+    };
   }, []);
   return (
     <header className="bg-white border-b border-zinc-200 sticky top-0 z-40" id="platform-navbar">
+      {/* Subtle Offline Trust Indicator Bar at Top of Navbar */}
+      {!persistenceState.isOnline && (
+        <div 
+          className="bg-amber-50/95 border-b border-amber-200/80 px-4 py-1.5 text-center text-xs text-amber-900 flex items-center justify-center gap-2 transition-all shadow-2xs"
+          id="navbar-offline-status-bar"
+        >
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+            <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+          </span>
+          <WifiOff className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+          <span className="font-medium text-[11px] sm:text-xs">
+            <strong className="font-bold text-amber-950">Offline: Changes Queued</strong> — No internet connection detected. Edits, bids, and updates are safely cached locally and will sync automatically once restored.
+          </span>
+          <button
+            type="button"
+            onClick={() => persistenceCheck.toggleSimulatedOffline()}
+            className="text-[10px] font-bold text-amber-900 bg-amber-200/70 hover:bg-amber-200 px-2 py-0.5 rounded-md transition cursor-pointer shrink-0 ml-1"
+            title="Toggle or test connection"
+          >
+            Test Reconnect
+          </button>
+        </div>
+      )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16 items-center">
           
@@ -101,7 +145,7 @@ export default function Navbar({
             >
               🛠️ My Dashboard Console
             </button>
-            {(currentUser?.role === "owner" || currentUser?.isPlatformOwner || currentUser?.username === "nwiller9185") && (
+            {(currentUser?.role === "owner" || currentUser?.isPlatformOwner || currentUser?.username === "nwiller9185" || currentUser?.email?.toLowerCase().includes("willernicholas")) && (
               <>
                 <button
                   onClick={() => onChangeTab("outreach")}
@@ -169,7 +213,22 @@ export default function Navbar({
           </nav>
 
           {/* Right actions */}
-          <div className="flex items-center gap-2.5 sm:gap-3">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* 1,000 Users Month-End Sprint Button */}
+            <button
+              type="button"
+              onClick={onOpenSprintModal}
+              title="Target: 1,000 New Users by End of Month Sprint Hub"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 via-amber-400 to-emerald-400 text-zinc-950 shadow-xs border border-amber-300 hover:brightness-105 active:scale-95 transition cursor-pointer shrink-0"
+              id="navbar-sprint-btn"
+            >
+              <Flame className="w-3.5 h-3.5 fill-zinc-950 text-zinc-950 animate-pulse" />
+              <span className="font-black tracking-tight">1k Users Sprint</span>
+              <span className="bg-zinc-950/85 text-amber-300 px-1.5 py-0.5 rounded text-[10px] font-mono font-black hidden sm:inline">
+                {sprintTotal}/1k
+              </span>
+            </button>
+
             {/* Apple App Store & iOS Install Button */}
             <button
               type="button"
@@ -192,13 +251,13 @@ export default function Navbar({
               }}
               title={
                 persistenceState.isOnline
-                  ? "Persistence-Check: Online & Cloud Synced. Click to simulate Offline mode."
-                  : `Persistence-Check: Offline. ${persistenceState.pendingCount} update(s) queued for sync. Click to restore Online mode.`
+                  ? "Connection Status: Online & Cloud Synced. Click to simulate Offline mode."
+                  : `Offline: Changes Queued (${persistenceState.pendingCount} update(s) stored locally). Click to restore Online mode.`
               }
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-[11px] font-bold border transition cursor-pointer ${
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold border transition cursor-pointer shrink-0 ${
                 persistenceState.isOnline
                   ? "bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100"
-                  : "bg-amber-500 text-white border-amber-600 shadow-xs animate-pulse"
+                  : "bg-amber-50 text-amber-900 border-amber-300 hover:bg-amber-100 shadow-xs"
               }`}
               id="navbar-persistence-status-pill"
             >
@@ -210,10 +269,19 @@ export default function Navbar({
                 </>
               ) : (
                 <>
-                  <WifiOff className="w-3.5 h-3.5 text-white shrink-0" />
-                  <span>
-                    Offline {persistenceState.pendingCount > 0 ? `(${persistenceState.pendingCount} Q)` : ""}
+                  <span className="relative flex h-2 w-2 shrink-0">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
                   </span>
+                  <WifiOff className="w-3.5 h-3.5 text-amber-700 shrink-0" />
+                  <span className="whitespace-nowrap font-bold text-amber-950">
+                    Offline: Changes Queued
+                  </span>
+                  {persistenceState.pendingCount > 0 && (
+                    <span className="bg-amber-200 text-amber-950 px-1.5 py-0.2 rounded font-mono text-[10px] font-black ml-0.5">
+                      {persistenceState.pendingCount}
+                    </span>
+                  )}
                 </>
               )}
             </button>

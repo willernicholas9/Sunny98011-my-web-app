@@ -13,8 +13,11 @@ import {
   MessageSquare,
   Image as ImageIcon,
   CheckCircle,
+  PhoneCall,
+  Lock,
 } from "lucide-react";
 import QuickBidModal from "./QuickBidModal";
+import { monetizationService } from "../../services/monetizationService";
 
 interface ProjectOpportunityTableProps {
   projects: Project[];
@@ -25,6 +28,7 @@ interface ProjectOpportunityTableProps {
   onSelectProject?: (projectId: string) => void;
   onStartChat?: (recipientId: string, recipientName: string, recipientRole: "customer" | "contractor") => void;
   onViewOnMap?: (projectId: string) => void;
+  onOpenMonetizationModal?: (kind: "contractor_pro" | "lead_unlock" | "rush_dispatch" | "project_boost", project?: Project) => void;
 }
 
 function ProjectOpportunityTableComponent({
@@ -36,6 +40,7 @@ function ProjectOpportunityTableComponent({
   onSelectProject,
   onStartChat,
   onViewOnMap,
+  onOpenMonetizationModal,
 }: ProjectOpportunityTableProps) {
   const [activeBidProject, setActiveBidProject] = useState<Project | null>(null);
 
@@ -149,14 +154,27 @@ function ProjectOpportunityTableComponent({
                   <td className="py-3.5 px-4 text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-1.5">
                       {currentUser?.role === "contractor" && (project.status === "open" || project.status === "bid_placed") && (
-                        <button
-                          type="button"
-                          onClick={() => setActiveBidProject(project)}
-                          className="bg-amber-600 hover:bg-amber-500 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs transition shadow-xs flex items-center gap-1 cursor-pointer"
-                        >
-                          <Zap className="w-3 h-3" />
-                          <span>Quick Bid</span>
-                        </button>
+                        <>
+                          {!monetizationService.isLeadUnlocked(project.id, currentUser?.id) && (
+                            <button
+                              type="button"
+                              onClick={() => onOpenMonetizationModal?.("lead_unlock", project)}
+                              className="bg-amber-100 hover:bg-amber-200 text-amber-950 font-bold px-2.5 py-1.5 rounded-xl text-xs transition border border-amber-300/80 flex items-center gap-1 cursor-pointer"
+                              title="Direct Phone & Email Unlock ($15)"
+                            >
+                              <PhoneCall className="w-3 h-3 text-amber-700" />
+                              <span className="hidden sm:inline">Lead ($15)</span>
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setActiveBidProject(project)}
+                            className="bg-amber-600 hover:bg-amber-500 text-white font-extrabold px-3 py-1.5 rounded-xl text-xs transition shadow-xs flex items-center gap-1 cursor-pointer"
+                          >
+                            <Zap className="w-3 h-3" />
+                            <span>Quick Bid</span>
+                          </button>
+                        </>
                       )}
 
                       <button

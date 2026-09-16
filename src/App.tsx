@@ -16,6 +16,7 @@ import StripeHub from "./components/StripeHub";
 import GoogleMapsDirectory from "./components/GoogleMapsDirectory";
 import OutreachCampaignsHub from "./components/OutreachCampaignsHub";
 import AutonomousAdInstallerAgent from "./components/AutonomousAdInstallerAgent";
+import UserAcquisitionSprintHub from "./components/outreach/UserAcquisitionSprintHub";
 import OwnerSuite from "./components/OwnerSuite";
 import InstantQuoteCalculator from "./components/InstantQuoteCalculator";
 import ProjectCalendarView from "./components/ProjectCalendarView";
@@ -42,7 +43,9 @@ import MobileBottomNav from "./components/MobileBottomNav";
 import HomeFocusSectionSelector, { HomeFocusMode } from "./components/HomeFocusSectionSelector";
 import QuickJobPostTemplateBar from "./components/QuickJobPostTemplateBar";
 import MonetizationQuickCheckoutModal, { MonetizationProductKind } from "./components/MonetizationQuickCheckoutModal";
-import { MapPin, Search, Mail, HelpCircle, HardHat, Hammer, Sparkles, Plus, AlertCircle, RefreshCw, CheckCircle2, DollarSign, ArrowRight, ShieldCheck, Star, MessageSquare, Compass, Crown, LayoutGrid, List, Calculator, Calendar as CalendarIcon, Apple, Smartphone, Download, Zap, Flame, Shield, TrendingUp, Clock, Phone } from "lucide-react";
+import FloatingScrollTopButton from "./components/FloatingScrollTopButton";
+import { getFavoriteProjectIds, toggleFavoriteProject, FAVORITES_EVENT } from "./utils/favoritesStorage";
+import { MapPin, Search, Mail, HelpCircle, HardHat, Hammer, Sparkles, Plus, AlertCircle, RefreshCw, CheckCircle2, DollarSign, ArrowRight, ArrowUp, ShieldCheck, Star, MessageSquare, Compass, Crown, LayoutGrid, List, Calculator, Calendar as CalendarIcon, Apple, Smartphone, Download, Zap, Flame, Shield, TrendingUp, Clock, Phone, Heart } from "lucide-react";
 
 const EMPTY_BIDS: Bid[] = [];
 
@@ -145,6 +148,31 @@ export default function App() {
   const [quickFilterMode, setQuickFilterMode] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("least_bids");
   const [showEstimatorWidget, setShowEstimatorWidget] = useState(false);
+  const [favoriteProjectIds, setFavoriteProjectIds] = useState<string[]>(() => getFavoriteProjectIds());
+
+  useEffect(() => {
+    const handleFavoritesChange = (e: any) => {
+      if (e?.detail?.allFavorites) {
+        setFavoriteProjectIds(e.detail.allFavorites);
+      } else {
+        setFavoriteProjectIds(getFavoriteProjectIds());
+      }
+    };
+    window.addEventListener(FAVORITES_EVENT, handleFavoritesChange);
+    return () => {
+      window.removeEventListener(FAVORITES_EVENT, handleFavoritesChange);
+    };
+  }, []);
+
+  const handleToggleFavoriteProject = (projectId: string) => {
+    const isNowFav = toggleFavoriteProject(projectId);
+    setFavoriteProjectIds(getFavoriteProjectIds());
+    setQuickToastMessage(isNowFav ? "Project saved to your Favorites! ❤️" : "Project removed from Favorites");
+    setTimeout(() => {
+      setQuickToastMessage(null);
+    }, 2000);
+  };
+
   const [homeFocusMode, setHomeFocusMode] = useState<HomeFocusMode>("feed");
   const [monetizationModalState, setMonetizationModalState] = useState<{
     isOpen: boolean;
@@ -172,6 +200,7 @@ export default function App() {
   const [showGlobalInvoiceModal, setShowGlobalInvoiceModal] = useState(false);
   const [showGlobalPermitModal, setShowGlobalPermitModal] = useState(false);
   const [showGlobalCrewBoardModal, setShowGlobalCrewBoardModal] = useState(false);
+  const [showSprintModal, setShowSprintModal] = useState(false);
   const [dismissedAppStoreBanner, setDismissedAppStoreBanner] = useState(() => {
     try {
       return SafeStorage.getItem("hsws_dismiss_universal_banner") === "true";
@@ -658,10 +687,26 @@ export default function App() {
     }
   };
 
-  // --- Place Bid on Projects ---
+  // --- Place Bid on Projects (With 3-Bid Freemium Paywall) ---
   const handlePlaceBid = (projectId: string, amount: number, message: string) => {
     if (!currentUser || currentUser.role !== "contractor") {
       alert("Logging in as professional active contractor required to enter bids.");
+      return;
+    }
+
+    const isPro = monetizationService.isContractorPro(currentUser.id) || currentUser.isPlatformOwner || currentUser.isPro;
+    const existingBidsCount = bids.filter((b) => b.contractorId === currentUser.id).length;
+    const targetProject = projects.find((p) => p.id === projectId);
+
+    // Hard Freemium Paywall: Free contractors receive 3 trial bids. 4th bid onwards requires Pro ($29/mo) or Lead Unlock ($15)
+    if (!isPro && existingBidsCount >= 3) {
+      setMonetizationModalState({
+        isOpen: true,
+        kind: "contractor_pro",
+        targetProject: targetProject || null,
+      });
+      setQuickToastMessage("🎯 3 Free Introductory Bids Used! Upgrade to Contractor Pro ($29/mo) to unlock unlimited bids.");
+      setTimeout(() => setQuickToastMessage(null), 5000);
       return;
     }
 
@@ -680,6 +725,20 @@ export default function App() {
     setBids((prev) => [...prev, newBid]);
     realtimeSync.publishUpdate("bids", newBid, "upsert", `Bid of $${amount.toLocaleString()} placed on project`);
     
+    // Alert contractor of remaining free trial bids if not pro
+    if (!isPro) {
+      const remaining = Math.max(0, 2 - existingBidsCount);
+      if (remaining > 0) {
+        setQuickToastMessage(`🎉 Bid submitted! (${remaining} free trial bid${remaining > 1 ? "s" : ""} remaining)`);
+      } else {
+        setQuickToastMessage("🎉 Bid submitted! (You have used your final free trial bid — next bid requires Pro)");
+      }
+      setTimeout(() => setQuickToastMessage(null), 4500);
+    } else {
+      setQuickToastMessage(`⚡ Pro Bid submitted successfully at $${amount.toLocaleString()}!`);
+      setTimeout(() => setQuickToastMessage(null), 3000);
+    }
+
     // Update parent project status
     setProjects((prev) =>
       prev.map((proj) => {
@@ -1437,6 +1496,8 @@ export default function App() {
         return projectBids.length > 0 && (project.status === "bid_placed" || project.status === "open");
       } else if (quickFilterMode === "escrow_ready") {
         return project.status === "accepted" || Boolean(project.agreedByCustomer);
+      } else if (quickFilterMode === "favorites") {
+        return favoriteProjectIds.includes(project.id);
       }
 
       return true;
@@ -1463,7 +1524,7 @@ export default function App() {
       }
       return 0;
     });
-  }, [projects, bidsByProjectId, projectDistanceMap, radiusLimit, searchTerm, selectedTradeFilter, quickFilterMode, sortBy]);
+  }, [projects, bidsByProjectId, projectDistanceMap, radiusLimit, searchTerm, selectedTradeFilter, quickFilterMode, sortBy, favoriteProjectIds]);
 
   // Filter Contractors
   const filteredContractors = useMemo(() => {
@@ -1486,7 +1547,7 @@ export default function App() {
   }, [contractors, searchTerm, selectedTradeFilter, availableOnlyFilter]);
 
   return (
-    <div className={`min-h-screen bg-zinc-50 flex flex-col font-sans select-none ${seniorMode ? "senior-mode" : ""}`} id="applet-main-container">
+    <div className={`min-h-screen bg-zinc-50 flex flex-col font-sans ${seniorMode ? "senior-mode" : ""}`} id="applet-main-container">
       
       {/* Real-Time Live Synchronizer Bar */}
       <RealtimeSyncBar
@@ -1516,6 +1577,7 @@ export default function App() {
         onToggleEmailLog={() => setShowEmailTracker(true)}
         emailCount={emailLogs.length}
         onOpenAppStoreModal={() => setShowAppStoreModal(true)}
+        onOpenSprintModal={() => setShowSprintModal(true)}
       />
 
       {/* Universal 1-Click Web Access & Mobile Ready Banner */}
@@ -1787,17 +1849,17 @@ export default function App() {
               </div>
             </div>
 
-            {/* Haversine Miles Radius Slider */}
+            {/* Haversine Miles Radius Slider & Fast Touch Presets */}
             <div className="space-y-1.5 md:col-span-1">
               <div className="flex justify-between items-center text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
                 <span>Active Radius Boundaries</span>
-                <span className="text-amber-700 lowercase font-mono lowercase tracking-normal text-[11px] bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
+                <span className="text-amber-700 font-mono tracking-normal text-[11px] bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                   {radiusLimit} miles
                 </span>
               </div>
               
               <div className="flex items-center gap-3 py-1">
-                <span className="text-[10px] text-zinc-400 font-bold">1 mi</span>
+                <span className="text-[10px] text-zinc-400 font-bold">5 mi</span>
                 <input
                   type="range"
                   min="5"
@@ -1809,6 +1871,24 @@ export default function App() {
                   id="distance-radius-slider"
                 />
                 <span className="text-[10px] text-zinc-400 font-bold">120 mi</span>
+              </div>
+
+              {/* Fast 1-Tap Touch Presets */}
+              <div className="flex items-center justify-between gap-1 pt-0.5">
+                {[15, 30, 60, 120].map((dist) => (
+                  <button
+                    key={dist}
+                    type="button"
+                    onClick={() => setRadiusLimit(dist)}
+                    className={`flex-1 py-1 px-1.5 rounded-lg text-[10px] font-bold transition cursor-pointer min-h-[30px] flex items-center justify-center ${
+                      radiusLimit === dist
+                        ? "bg-amber-600 text-white shadow-xs font-black"
+                        : "bg-zinc-100 hover:bg-zinc-200 text-zinc-700 border border-zinc-200/70"
+                    }`}
+                  >
+                    {dist === 120 ? "Max (120m)" : `${dist}m`}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -2298,6 +2378,7 @@ export default function App() {
                     layoutMode={jobsLayoutMode}
                     onChangeLayoutMode={setJobsLayoutMode}
                     availableTrades={TRADE_OPTIONS}
+                    favoritesCount={favoriteProjectIds.length}
                   />
 
                   {/* View Router (Calendar / Table / Grid / Empty) */}
@@ -2323,28 +2404,52 @@ export default function App() {
                         setShowMapsDirectory(true);
                       }}
                       onStartChat={handleStartChat}
+                      onOpenMonetizationModal={(kind, targetProject) => setMonetizationModalState({ isOpen: true, kind, targetProject: targetProject || null })}
                     />
                   ) : filteredProjects.length === 0 ? (
-                    <div className="bg-white border border-zinc-200 rounded-2xl p-12 text-center max-w-xl mx-auto space-y-4 shadow-xs">
-                      <span className="text-4xl">🔎</span>
-                      <h3 className="font-display font-bold text-zinc-900 text-lg">No job opportunities match this filter</h3>
-                      <p className="text-zinc-500 text-xs leading-relaxed">
-                        Try expanding your radius past {radiusLimit} miles, switching your trade category, or clearing active filters to see all available local jobs.
-                      </p>
-                      <div className="flex items-center justify-center gap-2 pt-2">
-                        <button
-                          onClick={() => {
-                            setQuickFilterMode("all");
-                            setSelectedTradeFilter("");
-                            setSearchTerm("");
-                            setRadiusLimit(120);
-                          }}
-                          className="text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-xl px-4 py-2.5 transition cursor-pointer"
-                        >
-                          Reset All Filters & Maximize Radius (120 mi)
-                        </button>
+                    quickFilterMode === "favorites" ? (
+                      <div className="bg-white border border-rose-100 rounded-3xl p-12 text-center max-w-xl mx-auto space-y-4 shadow-xs">
+                        <div className="w-14 h-14 rounded-2xl bg-rose-50 border border-rose-200 text-rose-500 flex items-center justify-center mx-auto shadow-2xs">
+                          <Heart className="w-7 h-7 fill-rose-500 text-rose-500" />
+                        </div>
+                        <div>
+                          <h3 className="font-display font-black text-zinc-900 text-lg">No Saved Favorite Projects Yet</h3>
+                          <p className="text-zinc-500 text-xs leading-relaxed max-w-md mx-auto mt-1">
+                            Click the <strong>Heart icon (❤️)</strong> on any project card in the active job opportunities feed to bookmark it in your browser storage for instant quick access.
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-center gap-2 pt-2">
+                          <button
+                            type="button"
+                            onClick={() => setQuickFilterMode("all")}
+                            className="text-xs font-bold text-slate-900 bg-amber-400 hover:bg-amber-300 border border-amber-500/30 rounded-xl px-5 py-2.5 transition shadow-xs cursor-pointer active:scale-95"
+                          >
+                            Browse All Active Opportunities
+                          </button>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="bg-white border border-zinc-200 rounded-2xl p-12 text-center max-w-xl mx-auto space-y-4 shadow-xs">
+                        <span className="text-4xl">🔎</span>
+                        <h3 className="font-display font-bold text-zinc-900 text-lg">No job opportunities match this filter</h3>
+                        <p className="text-zinc-500 text-xs leading-relaxed">
+                          Try expanding your radius past {radiusLimit} miles, switching your trade category, or clearing active filters to see all available local jobs.
+                        </p>
+                        <div className="flex items-center justify-center gap-2 pt-2">
+                          <button
+                            onClick={() => {
+                              setQuickFilterMode("all");
+                              setSelectedTradeFilter("");
+                              setSearchTerm("");
+                              setRadiusLimit(120);
+                            }}
+                            className="text-xs font-bold text-amber-900 bg-amber-100 hover:bg-amber-200 border border-amber-300 rounded-xl px-4 py-2.5 transition cursor-pointer"
+                          >
+                            Reset All Filters & Maximize Radius (120 mi)
+                          </button>
+                        </div>
+                      </div>
+                    )
                   ) : (
                     <div className={jobsLayoutMode === "grid" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "grid grid-cols-1 gap-4"}>
                       {filteredProjects.map((project) => {
@@ -2359,6 +2464,8 @@ export default function App() {
                             currentUser={currentUser}
                             currentCityName={currentCityName}
                             distanceToProject={dist}
+                            isFavorite={favoriteProjectIds.includes(project.id)}
+                            onToggleFavorite={handleToggleFavoriteProject}
                             onPlaceBid={(amount, msg) => handlePlaceBid(project.id, amount, msg)}
                             onAgreeToProject={() => handleAgreeToProject(project.id)}
                             onAcceptBid={(bidId) => handleAcceptBid(project.id, bidId)}
@@ -2371,6 +2478,7 @@ export default function App() {
                             onViewOnMap={(projectId) => { setSelectedMapProjectId(projectId); setShowMapsDirectory(true); }}
                             onSimulateContractorBid={handleSimulateContractorBid}
                             onUpdateProjectImages={handleUpdateProjectImages}
+                            onOpenMonetizationModal={(kind, targetProject) => setMonetizationModalState({ isOpen: true, kind, targetProject: targetProject || null })}
                           />
                         );
                       })}
@@ -2756,6 +2864,8 @@ export default function App() {
                                 project={project}
                                 bids={bidsByProjectId.get(project.id) || EMPTY_BIDS}
                                 currentUser={currentUser}
+                                isFavorite={favoriteProjectIds.includes(project.id)}
+                                onToggleFavorite={handleToggleFavoriteProject}
                                 onAgreeToProject={() => handleAgreeToProject(project.id)}
                                 onAcceptBid={(bidId) => handleAcceptBid(project.id, bidId)}
                                 onCompleteProject={() => handleCompleteProject(project.id)}
@@ -2792,6 +2902,8 @@ export default function App() {
                                 project={project}
                                 bids={bidsByProjectId.get(project.id) || EMPTY_BIDS}
                                 currentUser={currentUser}
+                                isFavorite={favoriteProjectIds.includes(project.id)}
+                                onToggleFavorite={handleToggleFavoriteProject}
                                 onAgreeToProject={() => handleAgreeToProject(project.id)}
                                 onCompleteProject={() => handleCompleteProject(project.id)}
                                 onStartChat={handleStartChat}
@@ -2834,13 +2946,14 @@ export default function App() {
             />
           )}
 
-          {activeTab === "outreach" && (currentUser?.role === "owner" || currentUser?.isPlatformOwner || currentUser?.username === "nwiller9185") && (
+          {activeTab === "outreach" && (currentUser?.role === "owner" || currentUser?.isPlatformOwner || currentUser?.username === "nwiller9185" || currentUser?.email?.toLowerCase().includes("willernicholas")) && (
             <OutreachCampaignsHub
               currentUser={currentUser}
               onAlert={(msg) => alert(msg)}
               seniorMode={seniorMode}
               setSeniorMode={setSeniorMode}
               onNavigateToAiAgent={() => setActiveTab("ai_agent")}
+              onOpenSprintModal={() => setShowSprintModal(true)}
               onSendEmailCampaign={(subject, body) => {
                 const newLog: EmailLog = {
                   id: `email-campaign-${Math.random().toString(36).substring(2, 9)}`,
@@ -2860,7 +2973,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === "ai_agent" && (currentUser?.role === "owner" || currentUser?.isPlatformOwner || currentUser?.username === "nwiller9185") && (
+          {activeTab === "ai_agent" && (currentUser?.role === "owner" || currentUser?.isPlatformOwner || currentUser?.username === "nwiller9185" || currentUser?.email?.toLowerCase().includes("willernicholas")) && (
             <AutonomousAdInstallerAgent
               appUrl={window.location.origin}
               onNavigateToProjects={() => setActiveTab("projects")}
@@ -2868,7 +2981,7 @@ export default function App() {
             />
           )}
 
-          {activeTab === "owner_suite" && (
+          {activeTab === "owner_suite" && (currentUser?.role === "owner" || currentUser?.isPlatformOwner || currentUser?.username === "nwiller9185" || currentUser?.email?.toLowerCase().includes("willernicholas")) && (
             <OwnerSuite
               currentUser={currentUser}
               projects={projects}
@@ -3275,6 +3388,39 @@ export default function App() {
         }}
       />
 
+      {/* 1,000 New Users Month-End Acquisition Sprint Hub Modal */}
+      {showSprintModal && (
+        <div
+          className="fixed inset-0 bg-zinc-950/80 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 backdrop-blur-xs overflow-y-auto animate-fade-in"
+          onClick={() => setShowSprintModal(false)}
+        >
+          <div
+            className="relative max-w-6xl w-full my-auto max-h-[92vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <UserAcquisitionSprintHub
+              currentUser={currentUser}
+              onClose={() => setShowSprintModal(false)}
+              onTriggerEmailLog={(log) => {
+                const newLog: EmailLog = {
+                  id: `email-${Date.now()}`,
+                  timestamp: new Date().toISOString(),
+                  recipientEmail: log.recipient,
+                  recipientName: log.recipient,
+                  subject: log.subject,
+                  body: log.body,
+                  status: "delivered",
+                  category: "outreach",
+                  senderEmail: "sprint@hotspotworkshop.com",
+                  senderName: "Sprint Growth Engine"
+                };
+                setEmailLogs((prev) => [newLog, ...prev]);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Floating Quick Action Toast Banner */}
       {quickToastMessage && (
         <div className="fixed bottom-20 sm:bottom-6 left-1/2 -translate-x-1/2 z-50 bg-slate-900 text-white font-bold text-xs px-5 py-3 rounded-2xl shadow-2xl border border-amber-500/50 flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-4 duration-300 max-w-sm sm:max-w-md text-center">
@@ -3314,6 +3460,9 @@ export default function App() {
         currentUser={currentUser}
         unreadCount={emailLogs.length}
       />
+
+      {/* Floating 1-Tap Touch Scroll-to-Top Button */}
+      <FloatingScrollTopButton />
 
       {/* Offline Persistence Check and Automatic Sync Toaster */}
       <PersistenceCheckToast />

@@ -38,15 +38,82 @@ function getGemini(): GoogleGenAI | null {
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
   if (!geminiClient) {
-    geminiClient = new GoogleGenAI({ apiKey: key });
+    geminiClient = new GoogleGenAI({
+      apiKey: key,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
   }
   return geminiClient;
+}
+
+// Multi-model Gemini generator with automatic retry & fallback for transient 503 high-demand errors
+interface GeminiCallParams {
+  contents: any;
+  config?: any;
+  preferredModel?: string;
+  timeoutMs?: number;
+}
+
+async function generateGeminiContentWithFallback(
+  gemini: GoogleGenAI,
+  params: GeminiCallParams
+): Promise<{ text: string; modelUsed: string }> {
+  // Ordered sequence of models compliant with gemini-api skill:
+  // Primary: 'gemini-3.8-flash' (standard for basic text generation)
+  // Fallbacks: 'gemini-flash-latest', 'gemini-3.1-flash-lite' (resilient against 503 high-demand surges)
+  const candidateModels = [
+    params.preferredModel || "gemini-3.8-flash",
+    "gemini-flash-latest",
+    "gemini-3.1-flash-lite",
+  ];
+  const modelsToTry = Array.from(new Set(candidateModels));
+
+  const timeoutMs = params.timeoutMs || 20000;
+  let lastErr: any = null;
+
+  for (const model of modelsToTry) {
+    let timeoutHandle: any;
+    try {
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error(`Timeout after ${timeoutMs}ms`)), timeoutMs);
+      });
+
+      const callPromise = gemini.models.generateContent({
+        model,
+        contents: params.contents,
+        config: params.config,
+      });
+
+      const response = await Promise.race([callPromise, timeoutPromise]);
+      clearTimeout(timeoutHandle);
+
+      const text = response.text?.trim() || "";
+      if (text) {
+        return { text, modelUsed: model };
+      }
+    } catch (err: any) {
+      clearTimeout(timeoutHandle);
+      lastErr = err;
+      // Move to next candidate model in sequence
+      continue;
+    }
+  }
+
+  throw lastErr;
 }
 
 // Lazy-initialize stripe helper safely
 let stripeClient: Stripe | null = null;
 function getStripe(): Stripe | null {
-  const key = process.env.STRIPE_SECRET_KEY;
+  const key = 
+    process.env.STRIPE_SECRET_KEY || 
+    process.env.STRIPE_API_KEY || 
+    process.env.STRIPE_KEY || 
+    process.env.STRIPE_SECRET;
   if (!key) return null;
   if (!stripeClient) {
     stripeClient = new Stripe(key, {
@@ -561,7 +628,7 @@ app.get("/api/facebook/page", (req, res) => {
   });
 });
 
-// Generate a Fun, Safe & High-Converting Daily Facebook Post via Gemini 3.7 Flash
+// Generate a Fun, Safe & High-Converting Daily Facebook Post via Gemini 3.8 Flash
 app.post("/api/facebook/generate-daily-post", async (req, res) => {
   const {
     category = "repair_tip",
@@ -657,19 +724,19 @@ Return ONLY a JSON object with this exact structure:
   }
 }`;
 
-      const response = await gemini.models.generateContent({
-        model: "gemini-3.7-flash",
+      const { text: responseText, modelUsed } = await generateGeminiContentWithFallback(gemini, {
+        preferredModel: "gemini-3.8-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
         },
       });
 
-      const responseText = response.text?.trim();
       if (responseText) {
         const parsed = JSON.parse(responseText);
         return res.json({
           success: true,
+          source: modelUsed,
           post: {
             id: `fb-post-${Date.now()}`,
             ...parsed,
@@ -683,7 +750,7 @@ Return ONLY a JSON object with this exact structure:
         });
       }
     } catch (err: any) {
-      console.warn("[Facebook AI Generator] Gemini API error, utilizing safe high-converting template:", err.message);
+      console.warn("[Facebook AI Generator] Gemini API notice (utilizing high-converting fallback template):", err?.message || err);
     }
   }
 
@@ -974,21 +1041,20 @@ Please return a valid JSON object matching this exact schema:
   "projectedContractorRevenue": "e.g. $3,400 - $8,900/mo in direct client contracts"
 }`;
 
-      const response = await gemini.models.generateContent({
-        model: "gemini-3.7-flash",
+      const { text: responseText, modelUsed } = await generateGeminiContentWithFallback(gemini, {
+        preferredModel: "gemini-3.8-flash",
         contents: prompt,
         config: {
           responseMimeType: "application/json",
         },
       });
 
-      const responseText = response.text;
       if (responseText) {
         try {
           const parsed = JSON.parse(responseText);
           return res.json({
             success: true,
-            source: "gemini-3.7-flash",
+            source: modelUsed,
             data: parsed,
           });
         } catch (parseErr) {
@@ -996,7 +1062,7 @@ Please return a valid JSON object matching this exact schema:
         }
       }
     } catch (aiErr: any) {
-      console.warn("Gemini API error in outreach generator, falling back to algorithmic builder:", aiErr?.message || aiErr);
+      console.warn("Gemini notice in outreach generator, utilizing algorithmic builder:", aiErr?.message || aiErr);
     }
   }
 
@@ -1158,17 +1224,17 @@ Return valid JSON matching this schema:
   }
 }`;
 
-      const response = await gemini.models.generateContent({
-        model: "gemini-3.7-flash",
+      const { text: responseText } = await generateGeminiContentWithFallback(gemini, {
+        preferredModel: "gemini-3.8-flash",
         contents: prompt,
         config: { responseMimeType: "application/json" }
       });
 
-      if (response.text) {
-        return res.json({ success: true, data: JSON.parse(response.text) });
+      if (responseText) {
+        return res.json({ success: true, data: JSON.parse(responseText) });
       }
     } catch (e) {
-      console.warn("Gemini SEO landing error, using fallback:", e);
+      console.warn("Gemini notice in SEO landing, utilizing fallback:", e);
     }
   }
 
@@ -1215,12 +1281,109 @@ Return valid JSON matching this schema:
   });
 });
 
+// 1,000 New Users by Month-End AI Growth Playbook Generator
+app.post("/api/growth/generate-sprint-playbook", async (req, res) => {
+  const {
+    city = "Austin",
+    state = "TX",
+    tradeFocus = "General Home Repair & Handyman",
+    targetAudience = "both",
+  } = req.body || {};
+
+  const gemini = getGemini();
+  if (gemini) {
+    try {
+      const prompt = `You are the Lead Growth Marketing Architect for "Hot Spot Work Shop", a peer-to-peer home improvement marketplace connecting homeowners with verified local trade contractors (zero middleman markup, 100% escrow protection).
+
+GOAL: We need to acquire 1,000 NEW USERS (both homeowners with active repairs and licensed local contractors) by the end of this month in ${city}, ${state}.
+
+AUDIENCE FOCUS: ${targetAudience}
+TRADE FOCUS: ${tradeFocus}
+
+Generate a hyper-local, high-converting, viral acquisition sprint package in valid JSON with this exact schema:
+{
+  "sprintTitle": "e.g. ${city} 1,000-User Homeowner & Trade Blitz",
+  "homeownerPitch": {
+    "headline": "Punchy benefit headline under 10 words",
+    "nextdoorCopy": "Engaging community post for Nextdoor neighborhood groups (120-150 words) emphasizing $25 project credit and zero markups",
+    "smsInvite": "Casual 1-to-1 viral referral text under 160 characters"
+  },
+  "contractorPitch": {
+    "headline": "Direct offer to trade pros under 10 words",
+    "recruitmentScript": "No-BS email/DM pitch to local contractors (90-120 words) explaining First 3 Leads 100% Free and NO upfront Angi lead fees",
+    "quickSms": "Short text to a local pro under 160 characters offering immediate job leads"
+  },
+  "facebookGroupPost": "Viral question/discussion post formatted for local ${city} community groups with emojis and clear CTA",
+  "guerrillaGrowthTactic": "One specific, highly effective local offline tactic for ${city} (e.g., Home Depot/Lowe's pro desk morning coffee flyer drop, supply house bulletin, Realtor partner loop)",
+  "projectedWeeklyUsers": 250,
+  "actionChecklist": [
+    "Post Nextdoor neighborhood announcement in top 5 ${city} subdivisions",
+    "Send direct recruitment SMS to 40 local trade contractors offering 3 free leads",
+    "Drop printable QR yard signs and pro-desk flyers at local supplier counters",
+    "Trigger viral $25 referral credit loop to existing homeowners"
+  ]
+}`;
+
+      const { text: responseText, modelUsed } = await generateGeminiContentWithFallback(gemini, {
+        preferredModel: "gemini-3.8-flash",
+        contents: prompt,
+        config: { responseMimeType: "application/json" }
+      });
+
+      if (responseText) {
+        return res.json({
+          success: true,
+          source: modelUsed,
+          playbook: JSON.parse(responseText)
+        });
+      }
+    } catch (err: any) {
+      console.warn("[Growth Playbook API] Gemini notice, utilizing algorithmic playbook:", err?.message || err);
+    }
+  }
+
+  // High-converting algorithmic fallback
+  return res.json({
+    success: true,
+    source: "algorithmic_sprint_engine",
+    playbook: {
+      sprintTitle: `${city} 1,000-User Homeowner & Trade Blitz`,
+      homeownerPitch: {
+        headline: `Need home repairs in ${city}? Get $25 off your first project!`,
+        nextdoorCopy: `Hey neighbors in ${city}! If you've been putting off home repairs—whether it's drywall patches, squeaky floors, gutter cleaning, or faucet leaks—check out Hot Spot Work Shop. Unlike the big corporate lead sites that charge insane middleman markups, you connect directly with verified local tradesmen and your payment stays locked in 100% escrow protection until you sign off on the work. Plus, we're giving our neighborhood $25 in project credits this week!`,
+        smsInvite: `Hey! Found this great local app for home repairs in ${city}. Here's $25 credit toward your first fix: hotspotworkshop.com/?ref=home25`
+      },
+      contractorPitch: {
+        headline: `Tired of paying $60 for fake Angi leads in ${city}?`,
+        recruitmentScript: `Hey fellow tradesmen—quick heads up. Hot Spot Work Shop is launching across ${city} this month. Homeowners are posting active projects right now. You get your first 3 bids 100% free with zero upfront lead charges. When you finish the job, milestone escrow guarantees your payment in 24 hours. Claim your free verified contractor profile today!`,
+        quickSms: `Pro trades in ${city}: Homeowners need repairs now! First 3 project leads 100% free, no Angi lead fees. Claim yours: hotspotworkshop.com/?tab=contractors`
+      },
+      facebookGroupPost: `🛠️ ${city} Homeowners & Trade Pros! What's the one repair in your house you've been putting off all summer? Drop it below! We're connecting neighbors directly with top-rated local handymen and trade pros—zero markup, escrow-guaranteed payments. Verified pros: reply with your trade to receive local job leads! 👇`,
+      guerrillaGrowthTactic: `Supply House Pro Desk Blitz: Drop laminated flyers with QR code at local ${city} plumbing, electrical, and lumber supply houses between 6:30 AM - 8:30 AM offering contractors 3 free leads on day 1.`,
+      projectedWeeklyUsers: 250,
+      actionChecklist: [
+        `Post Nextdoor announcement across top 10 ${city} neighborhoods`,
+        `Direct SMS broadcast to 50 local plumbers, electricians, and handymen`,
+        `Distribute printable door hangers & pro desk supply counter cards`,
+        `Activate viral $25 project credit referral loop`
+      ]
+    }
+  });
+});
+
 // 1. Stripe Status Check
 app.get("/api/stripe/status", (req, res) => {
-  const realKeyConfigured = !!process.env.STRIPE_SECRET_KEY;
+  const stripe = getStripe();
+  const realKeyConfigured = !!stripe;
+  const pubKey = 
+    process.env.VITE_STRIPE_PUBLISHABLE_KEY || 
+    process.env.STRIPE_PUBLISHABLE_KEY || 
+    process.env.STRIPE_PUBLIC_KEY || 
+    process.env.STRIPE_KEY_PUBLIC || 
+    "";
   res.json({
     configured: realKeyConfigured,
-    publishableKey: process.env.VITE_STRIPE_PUBLISHABLE_KEY || "",
+    publishableKey: pubKey,
     connectedStatus: mockStripeDb.connectedStatus,
     bankName: mockStripeDb.connectedBankName,
     last4: mockStripeDb.connectedAccountLast4,
@@ -1232,7 +1395,7 @@ app.post("/api/stripe/connect", async (req, res) => {
   const { routingNumber, accountNumber, bankName } = req.body;
   const stripe = getStripe();
 
-  if (stripe && process.env.STRIPE_SECRET_KEY) {
+  if (stripe) {
     try {
       // Create connected express account
       const account = await stripe.accounts.create({
@@ -1283,7 +1446,7 @@ app.post("/api/stripe/connect", async (req, res) => {
 // 3. Retrieve balance
 app.get("/api/stripe/balance", async (req, res) => {
   const stripe = getStripe();
-  if (stripe && process.env.STRIPE_SECRET_KEY) {
+  if (stripe) {
     try {
       const balance = await stripe.balance.retrieve();
       
@@ -1339,7 +1502,7 @@ app.post("/api/stripe/payout", async (req, res) => {
     return res.status(400).json({ error: "Insufficient available balance to payout." });
   }
 
-  if (stripe && process.env.STRIPE_SECRET_KEY) {
+  if (stripe) {
     try {
       // Create actual payout transfer
       const payout = await stripe.payouts.create({
@@ -1401,6 +1564,66 @@ app.post("/api/stripe/disconnect", (req, res) => {
   mockStripeDb.pendingBalance = 0;
   mockStripeDb.payoutHistory = [];
   res.json({ success: true });
+});
+
+// 8. Create Stripe Checkout Session (for Contractor Pro, Lead Unlocks, Project Boosts, Rush Dispatch)
+app.post("/api/stripe/create-checkout-session", async (req, res) => {
+  const { productKind, amount, title, projectId, userId, customerEmail } = req.body;
+  const stripe = getStripe();
+  const origin = req.headers.origin || process.env.APP_URL || `http://localhost:${PORT}`;
+  const unitAmountCents = Math.max(50, Math.round(Number(amount || 29) * 100));
+
+  if (stripe) {
+    try {
+      const session = await stripe.checkout.sessions.create({
+        payment_method_types: ["card"],
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: {
+                name: title || "Hot Spot Work Shop Service",
+                description: `Platform Fee / Service: ${productKind}${projectId ? ` for project #${projectId}` : ""}`,
+              },
+              unit_amount: unitAmountCents,
+            },
+            quantity: 1,
+          },
+        ],
+        mode: "payment",
+        customer_email: customerEmail || undefined,
+        success_url: `${origin}/?stripe_checkout=success&product=${productKind}&session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${origin}/?stripe_checkout=cancelled`,
+        metadata: {
+          productKind: productKind || "general",
+          projectId: projectId || "",
+          userId: userId || "",
+        },
+      });
+
+      return res.json({
+        success: true,
+        realMode: true,
+        url: session.url,
+        sessionId: session.id,
+      });
+    } catch (err: any) {
+      console.error("Stripe Checkout Session error:", err);
+      return res.status(500).json({ error: err.message });
+    }
+  } else {
+    // Sandbox / Simulation fallback
+    const numericAmt = Number(amount || 29);
+    mockStripeDb.availableBalance += numericAmt;
+    return res.json({
+      success: true,
+      realMode: false,
+      simulated: true,
+      url: null,
+      message: "Sandbox test payment registered successfully in platform ledger.",
+      status: mockStripeDb,
+    });
+  }
 });
 
 // =========================================================================

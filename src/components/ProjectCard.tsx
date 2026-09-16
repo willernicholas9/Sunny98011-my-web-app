@@ -4,6 +4,7 @@ import { Project, Bid, BaseUser } from "../types";
 import {
   MapPin,
   Phone,
+  PhoneCall,
   Mail,
   FileText,
   CheckCircle,
@@ -43,9 +44,12 @@ import {
   Send,
   Home,
   Printer,
+  Heart,
 } from "lucide-react";
+import { isProjectFavorite, toggleFavoriteProject, FAVORITES_EVENT } from "../utils/favoritesStorage";
 import ProjectMiniMap from "./ProjectMiniMap";
 import { CITIES, getDistance } from "../data/cities";
+import { monetizationService } from "../services/monetizationService";
 import ProjectShareImageGenerator from "./ProjectShareImageGenerator";
 import { applyOpenGraphMetaTags, generateProjectOGImage } from "../services/openGraphGenerator";
 import QuickBidModal from "./project-board/QuickBidModal";
@@ -73,6 +77,9 @@ interface ProjectCardProps {
   onViewOnMap?: (projectId: string) => void;
   onSimulateContractorBid?: (projectId: string) => void;
   onUpdateProjectImages?: (projectId: string, images: string[]) => void;
+  isFavorite?: boolean;
+  onToggleFavorite?: (projectId: string) => void;
+  onOpenMonetizationModal?: (kind: "contractor_pro" | "lead_unlock" | "rush_dispatch" | "project_boost", project?: Project) => void;
 }
 
 function ProjectCardComponent({
@@ -93,7 +100,48 @@ function ProjectCardComponent({
   onViewOnMap,
   onSimulateContractorBid,
   onUpdateProjectImages,
+  isFavorite: externalIsFavorite,
+  onToggleFavorite,
+  onOpenMonetizationModal,
 }: ProjectCardProps) {
+  const [localIsFavorite, setLocalIsFavorite] = useState<boolean>(() => {
+    if (typeof externalIsFavorite === "boolean") return externalIsFavorite;
+    return isProjectFavorite(project.id);
+  });
+
+  useEffect(() => {
+    if (typeof externalIsFavorite === "boolean") {
+      setLocalIsFavorite(externalIsFavorite);
+      return;
+    }
+    const handleStorageUpdate = (e: any) => {
+      if (e?.detail?.projectId === project.id) {
+        setLocalIsFavorite(e.detail.isFavorite);
+      } else if (!e?.detail?.projectId) {
+        setLocalIsFavorite(isProjectFavorite(project.id));
+      }
+    };
+    window.addEventListener(FAVORITES_EVENT, handleStorageUpdate);
+    return () => {
+      window.removeEventListener(FAVORITES_EVENT, handleStorageUpdate);
+    };
+  }, [project.id, externalIsFavorite]);
+
+  const handleToggleFavorite = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const nextState = toggleFavoriteProject(project.id);
+    setLocalIsFavorite(nextState);
+    if (onToggleFavorite) {
+      onToggleFavorite(project.id);
+    }
+    setShareSuccessToast(nextState ? "Saved to Favorites! ❤️" : "Removed from Favorites");
+    setTimeout(() => {
+      setShareSuccessToast(null);
+    }, 2000);
+  };
+
+  const isFavorited = typeof externalIsFavorite === "boolean" ? externalIsFavorite : localIsFavorite;
+
   const [isExpanded, setIsExpanded] = useState(false);
   const [showQuickBidModal, setShowQuickBidModal] = useState(false);
   const [activeImageIdx, setActiveImageIdx] = useState(0);
@@ -274,7 +322,10 @@ function ProjectCardComponent({
   const isOwner = currentUser && currentUser.id === project.customerId;
   const isAcceptedContractor = currentUser && currentUser.id === project.acceptedContractorId;
   const isFullyAgreedAndAccepted = project.status === "accepted" || project.status === "completed";
-  const canSeePrivateDetails = isOwner || (isAcceptedContractor && isFullyAgreedAndAccepted);
+  const isProContractor = currentUser?.role === "contractor" && (monetizationService.isContractorPro(currentUser?.id) || currentUser?.isPlatformOwner || currentUser?.isPro);
+  const isLeadPurchased = monetizationService.isLeadUnlocked(project.id, currentUser?.id);
+  const canSeePrivateDetails = isOwner || (isAcceptedContractor && isFullyAgreedAndAccepted) || isLeadPurchased || isProContractor;
+  const contractorBidsCount = currentUser?.role === "contractor" ? bids.filter((b) => b.contractorId === currentUser?.id).length : 0;
   const projectServiceFee = project.budget <= 25000 ? 5 : 20;
 
   const baseCity = currentCityName || currentUser?.city || "Austin";
@@ -383,7 +434,7 @@ function ProjectCardComponent({
 
   return (
     <div
-      className="bg-white border border-zinc-200 hover:border-zinc-300 rounded-2xl shadow-xs hover:shadow-md transition-all duration-200 overflow-hidden flex flex-col justify-between"
+      className="bg-white border border-zinc-200 hover:border-zinc-300 rounded-2xl shadow-xs hover:shadow-md transition-shadow duration-150 overflow-hidden flex flex-col justify-between"
       id={`project-card-${project.id}`}
     >
       <div>
@@ -448,6 +499,26 @@ function ProjectCardComponent({
             >
               <QrCode className="w-3.5 h-3.5 text-amber-700" />
               <span>Share via QR Code</span>
+            </button>
+
+            {/* Favorite / Heart Toggle Button */}
+            <button
+              type="button"
+              onClick={handleToggleFavorite}
+              className={`p-1.5 rounded-lg border transition-all duration-200 cursor-pointer flex items-center justify-center active:scale-90 ${
+                isFavorited
+                  ? "bg-rose-50 border-rose-200 text-rose-600 shadow-2xs hover:bg-rose-100"
+                  : "bg-white border-zinc-200 text-zinc-400 hover:text-rose-500 hover:border-rose-200 hover:bg-rose-50/60"
+              }`}
+              title={isFavorited ? "Remove from Favorite Projects (Saved in browser)" : "Save to Favorite Projects (Saved in browser)"}
+              aria-label={isFavorited ? "Remove from favorite projects" : "Save project to favorites"}
+              id={`favorite-btn-${project.id}`}
+            >
+              <Heart
+                className={`w-4 h-4 transition-all duration-200 ${
+                  isFavorited ? "fill-rose-500 text-rose-500 scale-110" : "text-zinc-400 hover:text-rose-500"
+                }`}
+              />
             </button>
 
             <button
@@ -636,6 +707,13 @@ function ProjectCardComponent({
               >
                 <Zap className="w-3.5 h-3.5" />
                 <span>Place Bid</span>
+                {!isProContractor && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
+                    contractorBidsCount >= 3 ? "bg-amber-900 text-amber-200" : "bg-amber-700/80 text-white"
+                  }`}>
+                    {contractorBidsCount >= 3 ? "Pro Req" : `${3 - contractorBidsCount} Free`}
+                  </span>
+                )}
               </button>
             )}
 
@@ -657,16 +735,16 @@ function ProjectCardComponent({
         {/* 4. Expanded Listing Details & Deep Management Accordion */}
         {isExpanded && (
           <div className="mt-4 pt-4 border-t border-zinc-150 space-y-4 animate-in fade-in duration-200">
-            {/* Private Contact Card if Accepted */}
+            {/* Private Contact Card if Accepted or Unlocked */}
             {canSeePrivateDetails ? (
-              <div className="bg-emerald-50/80 border border-emerald-200 rounded-2xl p-4 text-emerald-950 space-y-2">
+              <div className="bg-emerald-50/90 border border-emerald-200 rounded-2xl p-4 text-emerald-950 space-y-2 shadow-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-black uppercase tracking-wider text-emerald-800 flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4 text-emerald-600" />
                     <span>Unlocked Customer Information</span>
                   </span>
-                  <span className="bg-emerald-200/80 text-emerald-900 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
-                    $0 Contact Fee
+                  <span className="bg-emerald-200/90 text-emerald-900 text-[10px] font-extrabold px-2 py-0.5 rounded-md">
+                    {isProContractor ? "⭐ Pro Direct Access" : isLeadPurchased ? "⚡ Lead Pass Active" : "🤝 Agreed Match"}
                   </span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
@@ -676,13 +754,14 @@ function ProjectCardComponent({
                   </div>
                   <div>
                     <span className="text-zinc-500 font-medium block text-[10px]">Phone Number:</span>
-                    <a href={`tel:${project.customerPhone}`} className="text-emerald-700 font-bold hover:underline">
-                      📞 {project.customerPhone || "512-555-0199"}
+                    <a href={`tel:${project.customerPhone || "512-555-0199"}`} className="text-emerald-700 font-bold hover:underline inline-flex items-center gap-1">
+                      <PhoneCall className="w-3.5 h-3.5" />
+                      <span>{project.customerPhone || "512-555-0199"}</span>
                     </a>
                   </div>
                   <div>
                     <span className="text-zinc-500 font-medium block text-[10px]">Email Address:</span>
-                    <a href={`mailto:${project.customerEmail}`} className="text-emerald-700 font-bold hover:underline">
+                    <a href={`mailto:${project.customerEmail || "client@verified.com"}`} className="text-emerald-700 font-bold hover:underline">
                       ✉️ {project.customerEmail || "client@verified.com"}
                     </a>
                   </div>
@@ -693,12 +772,38 @@ function ProjectCardComponent({
                 </div>
               </div>
             ) : (
-              <div className="bg-zinc-50 border border-zinc-200 rounded-2xl p-3 flex items-center justify-between gap-2 text-xs text-zinc-500">
-                <span className="flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-                  <span>Customer private phone & address unlock automatically once a bid is accepted.</span>
-                </span>
-                <span className="font-bold text-emerald-700 shrink-0">$0 Lead Fee</span>
+              <div className="bg-gradient-to-r from-amber-50/80 via-orange-50/50 to-amber-50/80 border border-amber-200/90 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-amber-700 shrink-0" />
+                    <span className="font-extrabold text-xs text-amber-950">Customer Direct Contact Locked</span>
+                    <span className="bg-amber-200/80 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full">Direct Lead</span>
+                  </div>
+                  <p className="text-[11px] text-amber-900/80 leading-tight">
+                    Phone ({project.customerPhone ? project.customerPhone.slice(0, 7) + "••••" : "512-555-••••"}), personal email, and exact street address unlock on bid acceptance or via Lead Pass.
+                  </p>
+                </div>
+                {currentUser?.role === "contractor" && (
+                  <div className="flex items-center gap-2 shrink-0 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => onOpenMonetizationModal?.("lead_unlock", project)}
+                      className="w-full sm:w-auto px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-400 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black text-xs rounded-xl shadow-xs transition flex items-center justify-center gap-1.5 cursor-pointer active:scale-95"
+                      id={`unlock-lead-btn-${project.id}`}
+                    >
+                      <PhoneCall className="w-3.5 h-3.5" />
+                      <span>Unlock Lead ($15)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onOpenMonetizationModal?.("contractor_pro", project)}
+                      className="hidden lg:flex px-3 py-2 bg-white hover:bg-amber-100/60 text-amber-950 border border-amber-300 font-bold text-xs rounded-xl transition items-center gap-1 cursor-pointer"
+                      title="Contractor Pro ($29/mo) unlocks unlimited leads"
+                    >
+                      <span>Or Pro ($29/mo)</span>
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 

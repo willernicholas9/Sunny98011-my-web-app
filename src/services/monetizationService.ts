@@ -168,6 +168,68 @@ class MonetizationService {
     return [...this.transactions];
   }
 
+  // Check if a contractor has active Pro status
+  public isContractorPro(userId?: string): boolean {
+    if (!userId) return false;
+    try {
+      if (localStorage.getItem(`hsws_contractor_pro_${userId}`) === "true") {
+        return true;
+      }
+      return this.transactions.some(
+        tx => tx.userId === userId && 
+        (tx.productType === "contractor_pro_subscription" || tx.productType === "contractor_enterprise_subscription") && 
+        tx.status === "succeeded"
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  // Activate Pro status for a contractor
+  public setContractorPro(userId: string, isPro: boolean = true): void {
+    if (!userId) return;
+    try {
+      localStorage.setItem(`hsws_contractor_pro_${userId}`, isPro ? "true" : "false");
+    } catch (e) {
+      console.error(e);
+    }
+    this.notifyListeners();
+  }
+
+  // Check if direct customer contact for a project is unlocked
+  public isLeadUnlocked(projectId: string, userId?: string): boolean {
+    if (!projectId) return false;
+    try {
+      if (localStorage.getItem(`hsws_unlocked_lead_${projectId}`) === "true") {
+        return true;
+      }
+      if (userId && this.isContractorPro(userId)) {
+        return true;
+      }
+      return this.transactions.some(
+        tx => tx.projectId === projectId &&
+        (tx.productType === "lead_credits_pack_small" || tx.productType === "lead_unlock_single" || tx.title?.includes("Lead Unlock")) &&
+        tx.status === "succeeded"
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  // Unlock lead for a specific project
+  public unlockLead(projectId: string, userId?: string): void {
+    if (!projectId) return;
+    try {
+      localStorage.setItem(`hsws_unlocked_lead_${projectId}`, "true");
+      if (userId) {
+        localStorage.setItem(`hsws_unlocked_lead_${projectId}_${userId}`, "true");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    this.notifyListeners();
+  }
+
   // Calculate high-level financial metrics for Platform Owner
   public getPlatformStats(projects: Project[] = [], contractors: ContractorUser[] = []): PlatformMonetizationStats {
     let grossMerchandiseValue = 0;

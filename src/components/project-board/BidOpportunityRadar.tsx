@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import { Project, Bid } from "../../types";
 import {
   Target,
@@ -19,6 +19,7 @@ import {
   Award,
   Layers,
   ArrowUpDown,
+  Heart,
 } from "lucide-react";
 
 interface BidOpportunityRadarProps {
@@ -36,6 +37,7 @@ interface BidOpportunityRadarProps {
   layoutMode: "grid" | "list" | "table" | "calendar";
   onChangeLayoutMode: (mode: "grid" | "list" | "table" | "calendar") => void;
   availableTrades: string[];
+  favoritesCount?: number;
 }
 
 function BidOpportunityRadarComponent({
@@ -53,24 +55,23 @@ function BidOpportunityRadarComponent({
   layoutMode,
   onChangeLayoutMode,
   availableTrades,
+  favoritesCount = 0,
 }: BidOpportunityRadarProps) {
-  // Compute Bid Opportunity Metrics
-  const openProjects = projects.filter((p) => p.status === "open" || p.status === "bid_placed");
-  
-  // 0-Bid Projects (First Mover Advantage!)
-  const zeroBidProjects = openProjects.filter((p) => {
-    const projBids = bids.filter((b) => b.projectId === p.id);
-    return projBids.length === 0;
-  });
-
-  // High Value Projects ($1,000+)
-  const highValueProjects = openProjects.filter((p) => (p.budget || 0) >= 1000);
-
-  // Urgent Projects
-  const urgentProjects = openProjects.filter((p) => p.isEmergency || p.isBoosted);
-
-  // Total Pipeline Value
-  const totalPipelineValue = openProjects.reduce((acc, p) => acc + (p.budget || 0), 0);
+  // Compute Bid Opportunity Metrics (Memoized for high FPS scrolling and typing)
+  const { openProjects, zeroBidProjects, highValueProjects, urgentProjects, totalPipelineValue } = useMemo(() => {
+    const open = projects.filter((p) => p.status === "open" || p.status === "bid_placed");
+    const zero = open.filter((p) => !bids.some((b) => b.projectId === p.id));
+    const high = open.filter((p) => (p.budget || 0) >= 1000);
+    const urgent = open.filter((p) => p.isEmergency || p.isBoosted);
+    const total = open.reduce((acc, p) => acc + (p.budget || 0), 0);
+    return {
+      openProjects: open,
+      zeroBidProjects: zero,
+      highValueProjects: high,
+      urgentProjects: urgent,
+      totalPipelineValue: total,
+    };
+  }, [projects, bids]);
 
   return (
     <div className="space-y-4" id="bid-opportunity-radar-root">
@@ -261,6 +262,20 @@ function BidOpportunityRadarComponent({
             >
               <Shield className="w-3.5 h-3.5 text-sky-600" />
               <span>🛡️ Escrow Locked</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onChangeQuickFilter("favorites")}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 cursor-pointer ${
+                quickFilterMode === "favorites"
+                  ? "bg-rose-600 text-white shadow-xs font-black"
+                  : "bg-rose-50 text-rose-800 hover:bg-rose-100 border border-rose-200/60"
+              }`}
+              id="filter-favorites-btn"
+            >
+              <Heart className={`w-3.5 h-3.5 ${quickFilterMode === "favorites" ? "fill-white text-white" : "fill-rose-500 text-rose-500"}`} />
+              <span>Saved Favorites {favoritesCount > 0 ? `(${favoritesCount})` : ""}</span>
             </button>
           </div>
 

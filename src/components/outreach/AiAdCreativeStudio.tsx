@@ -198,7 +198,7 @@ Visit ${appUrl.replace(/^https?:\/\//, "")} today and get fifty dollars off your
       const json = await res.json();
       if (json.data) {
         setGeneratedCampaign(json.data);
-        setGenerationSource(json.source || "gemini-3.7-flash");
+        setGenerationSource(json.source || "gemini-3.8-flash");
       }
     } catch (err) {
       console.warn("AI generation request failed, using algorithmic generator:", err);
@@ -238,7 +238,7 @@ Visit ${appUrl.replace(/^https?:\/\//, "")} today and get fifty dollars off your
             <span>Autonomous Customer Acquisition & Copywriting Studio</span>
           </h2>
           <p className="text-xs text-zinc-600 leading-relaxed max-w-3xl">
-            Leverage Gemini 3.7 Flash AI to generate multi-channel advertising blitzes across Google LSA, Meta Carousels, TikTok scripts, 3-step automated SMS drips, Nextdoor sponsor feeds, and printable yard signs to flood your platform with paying homeowners.
+            Leverage Gemini AI to generate multi-channel advertising blitzes across Google LSA, Meta Carousels, TikTok scripts, 3-step automated SMS drips, Nextdoor sponsor feeds, and printable yard signs to flood your platform with paying homeowners.
           </p>
         </div>
 

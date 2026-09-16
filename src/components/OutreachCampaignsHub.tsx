@@ -1,10 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { 
   Share2, Mail, Copy, Check, MessageSquare, Megaphone, 
   Smartphone, Users, Sparkles, Printer, ShieldCheck, 
   Layers, CheckCircle, ExternalLink, RefreshCw, ZoomIn, 
-  Flame, Heart, MapPin, Eye, Compass, HelpCircle
+  Flame, Heart, MapPin, Eye, Compass, HelpCircle, Target, ArrowRight
 } from "lucide-react";
+import { acquisitionSprintService, AcquisitionSprintState } from "../services/acquisitionSprintService";
 
 interface OutreachCampaignsHubProps {
   currentUser: any;
@@ -14,6 +15,7 @@ interface OutreachCampaignsHubProps {
   appUrl?: string;
   onSendEmailCampaign?: (subject: string, body: string) => void;
   onNavigateToAiAgent?: () => void;
+  onOpenSprintModal?: () => void;
 }
 
 export default function OutreachCampaignsHub({
@@ -23,9 +25,16 @@ export default function OutreachCampaignsHub({
   setSeniorMode,
   appUrl = window.location.origin,
   onSendEmailCampaign,
-  onNavigateToAiAgent
+  onNavigateToAiAgent,
+  onOpenSprintModal,
 }: OutreachCampaignsHubProps) {
+  const [sprintState, setSprintState] = useState<AcquisitionSprintState>(() => acquisitionSprintService.getState());
   const [copiedLink, setCopiedLink] = useState(false);
+
+  useEffect(() => {
+    const unsub = acquisitionSprintService.subscribe((st) => setSprintState(st));
+    return () => unsub();
+  }, []);
   const [copiedFb, setCopiedFb] = useState(false);
   const [copiedNd, setCopiedNd] = useState(false);
   const [copiedFlyer, setCopiedFlyer] = useState(false);
@@ -110,6 +119,52 @@ export default function OutreachCampaignsHub({
               {seniorMode ? "Disable Large Font" : "Enable Senior Mode"}
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* --- MONTH-END 1,000 NEW USERS SPRINT ACCELERATOR CALLOUT --- */}
+      <div className="bg-gradient-to-r from-zinc-950 via-zinc-900 to-amber-950 border-2 border-amber-500/60 rounded-3xl p-6 text-white shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-6" id="outreach-sprint-accelerator-banner">
+        <div className="space-y-1.5 max-w-2xl">
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/25 border border-amber-500/50 text-amber-300 text-[11px] font-black uppercase tracking-wider">
+            <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+            <span>Priority Objective • Target: 1,000 Users by End of Month</span>
+          </div>
+          <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight flex items-center gap-2">
+            <span>🎯 1,000 New Users Acquisition Engine</span>
+          </h2>
+          <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed">
+            Direct viral homeowner $25 credits, contractor blitz zero-commission onboarding, printable door flyers, and autonomous AI-grounded city expansion playbooks.
+          </p>
+        </div>
+
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+          <div className="bg-black/40 border border-amber-500/30 rounded-2xl px-4 py-2.5 text-center">
+            <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Live Progress</div>
+            <div className="text-xl font-black font-mono text-amber-400">
+              {sprintState.totalAcquired} <span className="text-xs text-zinc-400 font-normal">/ {sprintState.targetUsers}</span>
+            </div>
+          </div>
+          {onOpenSprintModal ? (
+            <button
+              type="button"
+              onClick={onOpenSprintModal}
+              className="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg hover:shadow-amber-500/20 transition cursor-pointer"
+            >
+              <span>Launch 1k Sprint Hub</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          ) : (
+            onNavigateToAiAgent && (
+              <button
+                type="button"
+                onClick={onNavigateToAiAgent}
+                className="px-5 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-zinc-950 font-black text-xs flex items-center justify-center gap-2 shadow-lg hover:shadow-amber-500/20 transition cursor-pointer"
+              >
+                <span>Launch 1k Sprint Hub</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            )
+          )}
         </div>
       </div>
 

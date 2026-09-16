@@ -14,6 +14,7 @@ import PrintableDoorHangerModal from "./outreach/PrintableDoorHangerModal";
 import AgentZipCodeSearchBox from "./outreach/AgentZipCodeSearchBox";
 import SocialPlatformIntegrationHub from "./outreach/SocialPlatformIntegrationHub";
 import HotSpotWorkshopFacebookPage from "./outreach/HotSpotWorkshopFacebookPage";
+import UserAcquisitionSprintHub from "./outreach/UserAcquisitionSprintHub";
 import { autonomousAdWorker } from "../services/autonomousAdWorker";
 
 interface AutonomousAdInstallerAgentProps {
@@ -35,7 +36,7 @@ export default function AutonomousAdInstallerAgent({
   onNavigateToProjects,
   onNavigateToContractors,
 }: AutonomousAdInstallerAgentProps) {
-  const [agentViewTab, setAgentViewTab] = useState<"facebook_page" | "daemon_system" | "creative_studio" | "weather_sensor" | "lead_stream" | "usa_resources">("facebook_page");
+  const [agentViewTab, setAgentViewTab] = useState<"sprint_1000" | "facebook_page" | "daemon_system" | "creative_studio" | "weather_sensor" | "lead_stream" | "usa_resources">("sprint_1000");
   const [agentRunning, setAgentRunning] = useState(() => autonomousAdWorker.getState().agentRunning);
   const [dailyBudget, setDailyBudget] = useState(() => autonomousAdWorker.getState().dailyBudget);
   const [targetZips, setTargetZips] = useState<string>(() => {
@@ -287,9 +288,10 @@ export default function AutonomousAdInstallerAgent({
       {/* --- AI AGENT SUITE SUB-NAVIGATION BAR --- */}
       <div className="bg-white rounded-2xl border border-zinc-200 p-2 shadow-xs flex items-center gap-1.5 overflow-x-auto" id="ai-agent-sub-nav">
         {[
+          { id: "sprint_1000", label: "🎯 1,000 Users Month-End Sprint", badge: "Goal: 1k Users", highlight: true, customStyle: "bg-gradient-to-r from-amber-500 to-amber-600 text-zinc-950 font-black" },
           { id: "facebook_page", label: "📘 HOT SPOT WORK SHOP (Facebook Page)", badge: "Official AI Agent", highlight: true },
           { id: "daemon_system", label: "🤖 24/7 Ad Daemon & System Installer", badge: agentRunning ? "Running" : "Paused" },
-          { id: "creative_studio", label: "🎨 AI Ad Studio (Gemini 3.7 Flash)", badge: "New" },
+          { id: "creative_studio", label: "🎨 AI Ad Studio (Gemini 3.8 Flash)", badge: "New" },
           { id: "weather_sensor", label: "⚡ Weather Demand Sensor", badge: "Live Radar" },
           { id: "lead_stream", label: "📈 Live Lead Stream", badge: `${simulatedStats.clicks} clicks` },
           { id: "usa_resources", label: "🇺🇸 50-State Distribution Kit", badge: "50 States" },
@@ -300,9 +302,9 @@ export default function AutonomousAdInstallerAgent({
             onClick={() => setAgentViewTab(tab.id as any)}
             className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-2 whitespace-nowrap cursor-pointer ${
               agentViewTab === tab.id
-                ? tab.highlight 
-                  ? "bg-[#1877F2] text-white shadow-md"
-                  : "bg-blue-900 text-white shadow-md"
+                ? (tab as any).customStyle || (tab.highlight 
+                    ? "bg-[#1877F2] text-white shadow-md"
+                    : "bg-blue-900 text-white shadow-md")
                 : "bg-zinc-50 hover:bg-zinc-100 text-zinc-700 hover:text-zinc-950 border border-zinc-200"
             }`}
           >
@@ -310,7 +312,7 @@ export default function AutonomousAdInstallerAgent({
             {tab.badge && (
               <span className={`text-[10px] px-1.5 py-0.5 rounded-md font-bold uppercase ${
                 agentViewTab === tab.id
-                  ? "bg-white/20 text-white"
+                  ? "bg-black/20 text-current"
                   : "bg-zinc-200 text-zinc-700"
               }`}>
                 {tab.badge}
@@ -319,6 +321,11 @@ export default function AutonomousAdInstallerAgent({
           </button>
         ))}
       </div>
+
+      {/* --- SUBVIEW 0: 1,000 NEW USERS MONTH-END SPRINT HUB --- */}
+      {agentViewTab === "sprint_1000" && (
+        <UserAcquisitionSprintHub />
+      )}
 
       {/* --- SUBVIEW 1: HOT SPOT WORK SHOP FACEBOOK PAGE --- */}
       {agentViewTab === "facebook_page" && (
@@ -701,7 +708,7 @@ export default function AutonomousAdInstallerAgent({
       </div>
       )}
 
-      {/* ✨ 1. GEMINI 3.7 FLASH AI GENERATIVE OUTREACH & AD STUDIO */}
+      {/* ✨ 1. GEMINI 3.8 FLASH AI GENERATIVE OUTREACH & AD STUDIO */}
       {agentViewTab === "creative_studio" && (
       <AiAdCreativeStudio
         appUrl={appUrl}

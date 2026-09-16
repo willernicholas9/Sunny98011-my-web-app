@@ -1,9 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Project, Bid } from "../types";
 import OutreachCampaignsHub from "./OutreachCampaignsHub";
 import AutonomousAdInstallerAgent from "./AutonomousAdInstallerAgent";
 import ProjectAnalytics from "./owner/ProjectAnalytics";
 import LeadPriorityEngine from "./owner/LeadPriorityEngine";
+import { monetizationService } from "../services/monetizationService";
 import {
   ShieldCheck,
   DollarSign,
@@ -119,6 +120,27 @@ export default function OwnerSuite({
   // Escrow Override state
   const [selectedEscrowProject, setSelectedEscrowProject] = useState<Project | null>(null);
   const [actionSuccessMsg, setActionSuccessMsg] = useState("");
+
+  // Live Monetization Engine State
+  const [monetizationStats, setMonetizationStats] = useState(() => monetizationService.getPlatformStats());
+  const [transactionsList, setTransactionsList] = useState(() => monetizationService.getTransactions());
+  const [isStripeLive, setIsStripeLive] = useState(false);
+
+  useEffect(() => {
+    // Check Stripe server status
+    fetch("/api/stripe/status")
+      .then((res) => res.json())
+      .then((data) => {
+        setIsStripeLive(data.mode === "live");
+      })
+      .catch(() => setIsStripeLive(false));
+
+    const unsubscribe = monetizationService.subscribe(() => {
+      setMonetizationStats(monetizationService.getPlatformStats());
+      setTransactionsList(monetizationService.getTransactions());
+    });
+    return unsubscribe;
+  }, []);
 
   const handleUnlockSuite = (e: React.FormEvent) => {
     e.preventDefault();
@@ -616,8 +638,171 @@ export default function OwnerSuite({
             <span className="text-xs font-bold uppercase tracking-wider">Total Platform Reserve</span>
             <Building className="w-4 h-4 text-purple-600" />
           </div>
-          <p className="text-2xl font-black font-mono text-amber-600">${(monthlySubscriptionRev + totalServiceCommissions).toFixed(2)}</p>
+          <p className="text-2xl font-black font-mono text-amber-600">${(monthlySubscriptionRev + totalServiceCommissions + (monetizationStats.platformGrossRevenue || 0)).toFixed(2)}</p>
           <p className="text-[11px] text-zinc-500 mt-1">Routing to Chase Bank N.A. (****-9185)</p>
+        </div>
+      </div>
+
+      {/* LIVE MONETIZATION & STRIPE CASH INFLOW ENGINE */}
+      <div className="bg-gradient-to-br from-zinc-950 via-zinc-900 to-amber-950 border border-amber-500/40 rounded-3xl p-6 text-white shadow-xl space-y-5 relative overflow-hidden" id="owner-live-monetization-console">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-800 pb-4">
+          <div className="space-y-1">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-amber-400">
+                <DollarSign className="w-5 h-5" />
+              </div>
+              <h3 className="font-display font-black text-lg text-white">
+                Live Monetization & Cash Inflow Engine
+              </h3>
+              <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider flex items-center gap-1 ${
+                isStripeLive 
+                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/40" 
+                  : "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+              }`}>
+                <span className={`w-2 h-2 rounded-full ${isStripeLive ? "bg-emerald-400" : "bg-amber-400"} animate-pulse`} />
+                {isStripeLive ? "Stripe LIVE Production" : "Stripe Sandbox (Active Simulation)"}
+              </span>
+            </div>
+            <p className="text-xs text-zinc-400">
+              All 5 revenue levers are active with enforced paywalls. Contractors are gated at 3 bids and phone numbers require Lead Passes.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                monetizationService.recordTransaction({
+                  userId: "test-contractor",
+                  userName: "Apex Premier Roofing",
+                  userRole: "contractor",
+                  productType: "contractor_pro_subscription",
+                  title: "Contractor Pro Monthly Membership",
+                  amount: 29.00,
+                  currency: "USD",
+                  status: "succeeded",
+                  paymentMethod: "stripe_card",
+                  referenceId: "sub_test_pro_29",
+                });
+                setActionSuccessMsg("Recorded simulated $29.00 Contractor Pro subscription transaction!");
+                setTimeout(() => setActionSuccessMsg(""), 3500);
+              }}
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+              title="Test $29 Subscription Cash Flow"
+            >
+              <Zap className="w-3.5 h-3.5 fill-slate-950" />
+              <span>Simulate $29 Pro Charge</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                monetizationService.recordTransaction({
+                  userId: "test-contractor",
+                  userName: "Summit HVAC & Plumbing",
+                  userRole: "contractor",
+                  productType: "lead_unlock_single",
+                  title: "Direct Customer Lead Phone & Email Unlock",
+                  amount: 15.00,
+                  currency: "USD",
+                  status: "succeeded",
+                  paymentMethod: "stripe_card",
+                  referenceId: "ch_test_lead_15",
+                });
+                setActionSuccessMsg("Recorded simulated $15.00 Direct Lead Unlock transaction!");
+                setTimeout(() => setActionSuccessMsg(""), 3500);
+              }}
+              className="px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-amber-500/30 font-bold text-xs rounded-xl transition cursor-pointer flex items-center gap-1.5 active:scale-95"
+              title="Test $15 Lead Unlock Cash Flow"
+            >
+              <DollarSign className="w-3.5 h-3.5" />
+              <span>Simulate $15 Lead Charge</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 4 Monetization Levers Summary Cards */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-3.5 space-y-1">
+            <div className="flex items-center justify-between text-zinc-400 text-[11px] font-bold">
+              <span>Contractor Pro</span>
+              <span className="text-amber-400 font-mono font-bold">$29/mo</span>
+            </div>
+            <p className="text-xl font-black font-mono text-white">{monetizationStats.activeProContractorsCount || 0} Active</p>
+            <p className="text-[10px] text-zinc-500">Paywall at 3rd bid</p>
+          </div>
+
+          <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-3.5 space-y-1">
+            <div className="flex items-center justify-between text-zinc-400 text-[11px] font-bold">
+              <span>Lead Unlocks</span>
+              <span className="text-emerald-400 font-mono font-bold">$15/lead</span>
+            </div>
+            <p className="text-xl font-black font-mono text-white">{monetizationStats.leadCreditsPurchasedCount || 0} Sold</p>
+            <p className="text-[10px] text-zinc-500">Instant phone & email</p>
+          </div>
+
+          <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-3.5 space-y-1">
+            <div className="flex items-center justify-between text-zinc-400 text-[11px] font-bold">
+              <span>Project Boosts</span>
+              <span className="text-purple-400 font-mono font-bold">$9.99+</span>
+            </div>
+            <p className="text-xl font-black font-mono text-white">{monetizationStats.boostedProjectsCount || 0} Placed</p>
+            <p className="text-[10px] text-zinc-500">Featured homeowner placement</p>
+          </div>
+
+          <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-3.5 space-y-1">
+            <div className="flex items-center justify-between text-zinc-400 text-[11px] font-bold">
+              <span>Escrow Commission</span>
+              <span className="text-rose-400 font-mono font-bold">3% Take</span>
+            </div>
+            <p className="text-xl font-black font-mono text-white">${(monetizationStats.escrowCommissionsTotal || 0).toFixed(2)}</p>
+            <p className="text-[10px] text-zinc-500">Direct on project finish</p>
+          </div>
+        </div>
+
+        {/* Live Transaction Ledger */}
+        <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-black uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+              <Activity className="w-3.5 h-3.5 text-amber-400" />
+              <span>Real-Time Payment Inflow Ledger</span>
+            </span>
+            <span className="text-xs font-mono font-black text-amber-400">
+              Total Inflow: ${(monetizationStats.platformGrossRevenue || 0).toFixed(2)} USD
+            </span>
+          </div>
+
+          {transactionsList.length === 0 ? (
+            <p className="text-xs text-zinc-500 py-3 text-center">
+              No transactions recorded yet in current session. Use the test buttons above or click "Unlock Lead" / "Go Pro" on any project card.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b border-zinc-800 text-zinc-400 font-bold text-[10px] uppercase">
+                    <th className="py-2 px-3">Transaction ID</th>
+                    <th className="py-2 px-3">Payer</th>
+                    <th className="py-2 px-3">Product</th>
+                    <th className="py-2 px-3 text-right">Amount</th>
+                    <th className="py-2 px-3 text-right">Time</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-800/60 font-mono text-[11px]">
+                  {transactionsList.slice(0, 5).map((t) => (
+                    <tr key={t.id} className="hover:bg-zinc-800/40 transition">
+                      <td className="py-2.5 px-3 text-amber-400 font-bold">{t.id}</td>
+                      <td className="py-2.5 px-3 font-sans text-zinc-300">{t.userName} ({t.userRole})</td>
+                      <td className="py-2.5 px-3 font-sans text-zinc-400">{t.title}</td>
+                      <td className="py-2.5 px-3 text-right font-black text-emerald-400">+${t.amount.toFixed(2)}</td>
+                      <td className="py-2.5 px-3 text-right text-zinc-500 font-sans text-[10px]">
+                        {new Date(t.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 
