@@ -22,6 +22,8 @@ export interface QueuedUpdate {
   status: "queued" | "syncing" | "synced" | "failed";
   retryCount: number;
   errorMessage?: string;
+  syncedAt?: string;
+  targetEndpoint?: string;
 }
 
 export interface PersistenceState {
@@ -29,6 +31,7 @@ export interface PersistenceState {
   isSimulatedOffline: boolean;
   isSyncing: boolean;
   queue: QueuedUpdate[];
+  history: QueuedUpdate[];
   lastSyncTimestamp: string | null;
   lastCheckedTimestamp: string;
   pendingCount: number;

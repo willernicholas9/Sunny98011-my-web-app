@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { ContractorUser } from "../types";
-import { Crown, CheckCircle2, Zap, Shield, Sparkles, X, CreditCard, Lock, ArrowRight, Star } from "lucide-react";
+import { Crown, CheckCircle2, Zap, Shield, Sparkles, X, CreditCard, Lock, ArrowRight, Star, Gift } from "lucide-react";
 import { monetizationService } from "../services/monetizationService";
+import { acquisitionSprintService } from "../services/acquisitionSprintService";
 
 interface ContractorProModalProps {
   isOpen: boolean;
@@ -25,6 +26,10 @@ export default function ContractorProModal({
 
   if (!isOpen) return null;
 
+  const isPromoEligible = Boolean(
+    contractor?.first1000Promo?.isEligible || acquisitionSprintService.isFirst1000PromoActive()
+  );
+
   const handleSubscribe = async () => {
     if (!contractor) return;
     setIsProcessing(true);
@@ -44,6 +49,7 @@ export default function ContractorProModal({
           subscriptionActive: true,
           subscriptionTier: selectedTier,
           verifiedProBadge: true,
+          subscriptionExpiresAt: isPromoEligible ? "2026-10-28T23:59:59" : new Date(Date.now() + 30 * 86400000).toISOString(),
         };
 
         onUpgradeSuccess(updated);
@@ -60,7 +66,9 @@ export default function ContractorProModal({
     }
   };
 
-  const proPrice = billingCycle === "monthly" ? "$29" : "$290/yr ($24/mo)";
+  const proPrice = (isPromoEligible && billingCycle === "monthly")
+    ? "$0.00 / 1st Mo (FREE)"
+    : billingCycle === "monthly" ? "$29.99" : "$299/yr ($24.99/mo)";
   const enterprisePrice = billingCycle === "monthly" ? "$99" : "$990/yr ($82/mo)";
 
   return (
@@ -113,6 +121,31 @@ export default function ContractorProModal({
             </div>
           ) : (
             <>
+              {/* First 1,000 Signups Early Adopter Promo Banner */}
+              {isPromoEligible && (
+                <div className="p-3.5 bg-gradient-to-r from-amber-500/20 via-amber-400/25 to-amber-500/20 border border-amber-400/60 rounded-2xl flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2 bg-amber-400 text-slate-950 rounded-xl font-black shrink-0 shadow-xs">
+                      <Gift className="w-4 h-4 animate-bounce" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-black text-amber-300 block">First 1,000 Signups Special Active!</span>
+                        <span className="bg-amber-400/20 text-amber-200 text-[10px] font-mono font-black px-2 py-0.5 rounded-full">
+                          Valid until Oct 28, 2026
+                        </span>
+                      </div>
+                      <p className="text-zinc-300 text-[11px] mt-0.5">
+                        Enjoy <strong>1 Month of 100% Free Contractor Pro</strong> ($29.99/mo value waived). Unlimited job leads & verified pro badge!
+                      </p>
+                    </div>
+                  </div>
+                  <span className="bg-amber-400 text-slate-950 text-xs font-black px-2.5 py-1 rounded-xl uppercase tracking-wider shrink-0 shadow-xs">
+                    $0.00 Today
+                  </span>
+                </div>
+              )}
+
               {/* Billing toggle */}
               <div className="flex items-center justify-center">
                 <div className="bg-slate-900 border border-zinc-800 p-1 rounded-xl flex gap-1 text-xs font-bold">
@@ -227,10 +260,16 @@ export default function ContractorProModal({
               >
                 {isProcessing ? (
                   <span>Activating Pro Membership...</span>
+                ) : isPromoEligible && selectedTier === "pro" && billingCycle === "monthly" ? (
+                  <>
+                    <Gift className="w-4 h-4 text-slate-950" />
+                    <span>Claim 1 Month FREE Pro ($0.00 Today • Promo until Oct 28, 2026)</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
                 ) : (
                   <>
                     <Zap className="w-4 h-4" />
-                    <span>Activate {selectedTier === "enterprise" ? "Enterprise" : "Pro"} ({billingCycle === "monthly" ? (selectedTier === "enterprise" ? "$99/mo" : "$29/mo") : (selectedTier === "enterprise" ? "$990/yr" : "$290/yr")})</span>
+                    <span>Activate {selectedTier === "enterprise" ? "Enterprise" : "Pro"} ({billingCycle === "monthly" ? (selectedTier === "enterprise" ? "$99/mo" : "$29.99/mo") : (selectedTier === "enterprise" ? "$990/yr" : "$299/yr")})</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}

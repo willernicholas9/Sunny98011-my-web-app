@@ -1,12 +1,20 @@
 import { MonetizationTransaction, MonetizationProductType, PlatformMonetizationStats, Project, ContractorUser, UserRole, AiManagedAdCampaign } from "../types";
+import { acquisitionSprintService } from "./acquisitionSprintService";
 
 export interface PlatformFeeSettings {
-  contractorProSubscriptionEnabled: boolean; // IN SERVICE ($29/mo)
+  contractorProSubscriptionEnabled: boolean; // IN SERVICE ($29.99/mo)
   homeownerProjectBoostsEnabled: boolean; // IN SERVICE ($9.99 - $29.99)
   escrowPlatformCommissionEnabled: boolean; // IN SERVICE (3% - 5%)
   escrowCommissionRatePercent: number; // 3%
   contractorAcceptedLeadUnlockFee: number; // $0.00 (100% Free once project is accepted)
   contractorPreBidDirectOutreachAllowed: boolean; // Optional pre-bid tool
+  homeownerReferralCreditEnabled: boolean; // IN SERVICE ($25.00 Referral Credit)
+  referralCreditAmountUsd: number; // $25.00
+  verifiedContractorBadgeEnabled: boolean; // NEW: $19.00 one-time (Background Check & License Verification Badge)
+  workmanshipWarrantyBondEnabled: boolean; // NEW: $14.99 per project ($10k Homeowner Peace-of-Mind Protection)
+  permitPacketExportEnabled: boolean; // NEW: $9.99 (Official City Permit Submittal & Code Compliance Packet)
+  equipmentDumpsterBookingEnabled: boolean; // NEW: $25.00 (Commercial Dumpster & Heavy Equipment Booking Dispatch)
+  contractorSpotlightPinEnabled: boolean; // NEW: $14.99 (48-Hour City Hub Top Contractor Spotlight Pin)
 }
 
 const DEFAULT_SETTINGS: PlatformFeeSettings = {
@@ -15,7 +23,14 @@ const DEFAULT_SETTINGS: PlatformFeeSettings = {
   escrowPlatformCommissionEnabled: true,
   escrowCommissionRatePercent: 3,
   contractorAcceptedLeadUnlockFee: 0.00, // 100% FREE on acceptance
-  contractorPreBidDirectOutreachAllowed: true
+  contractorPreBidDirectOutreachAllowed: true,
+  homeownerReferralCreditEnabled: true,
+  referralCreditAmountUsd: 25.00,
+  verifiedContractorBadgeEnabled: true,
+  workmanshipWarrantyBondEnabled: true,
+  permitPacketExportEnabled: true,
+  equipmentDumpsterBookingEnabled: true,
+  contractorSpotlightPinEnabled: true,
 };
 
 const TRANSACTIONS_KEY = "hsws_monetization_transactions";
@@ -29,7 +44,7 @@ const INITIAL_TRANSACTIONS: MonetizationTransaction[] = [
     userRole: "contractor",
     productType: "contractor_pro_subscription",
     title: "Contractor Pro Membership (Monthly)",
-    amount: 29.00,
+    amount: 29.99,
     currency: "USD",
     status: "succeeded",
     timestamp: new Date(Date.now() - 86400000 * 5).toISOString(),
@@ -264,7 +279,7 @@ class MonetizationService {
       if (c.subscriptionTier === "enterprise") {
         monthlyRecurringRevenue += 99;
       } else if (c.subscriptionTier === "pro" || c.subscriptionActive) {
-        monthlyRecurringRevenue += 29;
+        monthlyRecurringRevenue += 29.99;
       }
     });
 
@@ -319,9 +334,17 @@ class MonetizationService {
     billingCycle: "monthly" | "annual" = "monthly",
     cardLast4: string = "4242"
   ): Promise<{ success: boolean; transaction: MonetizationTransaction; message: string }> {
-    const amount = tier === "enterprise" 
+    const isPromoEligible = Boolean(
+      (contractor.first1000Promo?.isEligible || acquisitionSprintService.isFirst1000PromoActive()) &&
+      tier === "pro" &&
+      billingCycle === "monthly"
+    );
+
+    const standardAmount = tier === "enterprise" 
       ? (billingCycle === "annual" ? 990 : 99) 
-      : (billingCycle === "annual" ? 290 : 29);
+      : (billingCycle === "annual" ? 299 : 29.99);
+
+    const amount = isPromoEligible ? 0.00 : standardAmount;
 
     const transaction: MonetizationTransaction = {
       id: `tx-sub-${Date.now()}`,
@@ -329,7 +352,7 @@ class MonetizationService {
       userName: contractor.company || contractor.fullName,
       userRole: "contractor",
       productType: tier === "enterprise" ? "contractor_enterprise_subscription" : "contractor_pro_subscription",
-      title: `${tier === "enterprise" ? "Enterprise Master" : "Contractor Pro"} Subscription (${billingCycle})`,
+      title: `${tier === "enterprise" ? "Enterprise Master" : "Contractor Pro"} Subscription (${billingCycle})${isPromoEligible ? " - 1 Month Free Promo (Oct 28, 2026)" : ""}`,
       amount,
       currency: "USD",
       status: "succeeded",
@@ -342,21 +365,27 @@ class MonetizationService {
     this.transactions.unshift(transaction);
     this.saveTransactions();
 
-    // Call server to add funds to platform owner Stripe balance
-    try {
-      await fetch("/api/stripe/mock-add-funds", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount, isPending: false })
-      });
-    } catch (e) {
-      console.warn("Could not sync with stripe server balance:", e);
+    // Call server to add funds to platform owner Stripe balance (if > 0)
+    if (amount > 0) {
+      try {
+        await fetch("/api/stripe/mock-add-funds", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ amount, isPending: false })
+        });
+      } catch (e) {
+        console.warn("Could not sync with stripe server balance:", e);
+      }
     }
+
+    const message = isPromoEligible
+      ? `🎉 First 1,000 Signups Special Active! Your 1 Month of FREE Contractor Pro is active ($0.00 today). Valid through October 28th, 2026!`
+      : `🎉 Success! You are now an active ${tier.toUpperCase()} Contractor with prioritized lead rankings and 0% surcharge!`;
 
     return {
       success: true,
       transaction,
-      message: `🎉 Success! You are now an active ${tier.toUpperCase()} Contractor with prioritized lead rankings and 0% surcharge!`
+      message,
     };
   }
 
@@ -692,6 +721,425 @@ class MonetizationService {
       transaction
     };
   }
+
+  // Claim or Issue $25.00 Referral Credit for Homeowners & Neighbors
+  public issueReferralCredit(
+    homeowner: { id: string; fullName: string; role: UserRole; email?: string },
+    neighborEmailOrPhone: string,
+    neighborName?: string
+  ): { success: boolean; creditAmount: number; message: string; transaction: MonetizationTransaction } {
+    const amount = this.settings.referralCreditAmountUsd || 25.00;
+    const transaction: MonetizationTransaction = {
+      id: `tx-referral-${Date.now()}`,
+      userId: homeowner.id,
+      userName: homeowner.fullName,
+      userRole: homeowner.role,
+      productType: "homeowner_referral_credit",
+      title: `$25.00 Homeowner Referral Credit (Invited: ${neighborName || neighborEmailOrPhone})`,
+      amount,
+      currency: "USD",
+      status: "succeeded",
+      timestamp: new Date().toISOString(),
+      paymentMethod: "wallet_balance",
+      referenceId: `ref_${Math.random().toString(36).substring(2, 9)}`
+    };
+
+    this.transactions.unshift(transaction);
+    this.saveTransactions();
+
+    // Store in user's credits ledger
+    const ledgerKey = `hsws_user_credits_${homeowner.id}`;
+    const currentCredits = parseFloat(localStorage.getItem(ledgerKey) || "0");
+    localStorage.setItem(ledgerKey, (currentCredits + amount).toString());
+
+    return {
+      success: true,
+      creditAmount: amount,
+      message: `Congratulations! A $${amount.toFixed(2)} referral credit has been added to your wallet. Your neighbor ${neighborName || neighborEmailOrPhone} also receives a $${amount.toFixed(2)} welcome project credit!`,
+      transaction
+    };
+  }
+
+  public getUserReferralCredits(userId: string): number {
+    try {
+      const ledgerKey = `hsws_user_credits_${userId}`;
+      return parseFloat(localStorage.getItem(ledgerKey) || "0");
+    } catch {
+      return 0;
+    }
+  }
+
+  // 1. NEW: Purchase Verified License & Criminal Background Check Badge ($19.00 one-time)
+  public async purchaseVerifiedBadge(
+    contractor: ContractorUser
+  ): Promise<{ success: boolean; transaction: MonetizationTransaction; message: string }> {
+    const amount = 19.00;
+    const transaction: MonetizationTransaction = {
+      id: `tx-badge-${Date.now()}`,
+      userId: contractor.id,
+      userName: contractor.company || contractor.fullName,
+      userRole: "contractor",
+      productType: "contractor_verified_badge",
+      title: "Verified Pro License & Criminal Background Shield ($19.00)",
+      amount,
+      currency: "USD",
+      status: "succeeded",
+      timestamp: new Date().toISOString(),
+      contractorId: contractor.id,
+      paymentMethod: "stripe_card",
+      referenceId: `ver_${Math.random().toString(36).substring(2, 9)}`
+    };
+
+    this.transactions.unshift(transaction);
+    this.saveTransactions();
+
+    try {
+      localStorage.setItem(`hsws_contractor_verified_badge_${contractor.id}`, "true");
+      await fetch("/api/stripe/mock-add-funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, isPending: false })
+      });
+    } catch (e) {
+      console.warn("Could not sync verified badge fee:", e);
+    }
+
+    return {
+      success: true,
+      transaction,
+      message: "🎉 Background Check & License Verification complete! The Gold Trust Shield is now live on your profile.",
+    };
+  }
+
+  // 2. NEW: Purchase $10,000 Guaranteed Homeowner Workmanship Warranty Bond ($14.99 per project)
+  public async purchaseWarrantyBond(
+    project: Project,
+    customer: { id: string; fullName: string; role: UserRole }
+  ): Promise<{ success: boolean; transaction: MonetizationTransaction; updatedProject: Project }> {
+    const amount = 14.99;
+    const transaction: MonetizationTransaction = {
+      id: `tx-warranty-${Date.now()}`,
+      userId: customer.id,
+      userName: customer.fullName,
+      userRole: customer.role,
+      productType: "workmanship_warranty_bond",
+      title: `$10,000 Workmanship Warranty Bond ("${project.title.slice(0, 24)}...")`,
+      amount,
+      currency: "USD",
+      status: "succeeded",
+      timestamp: new Date().toISOString(),
+      projectId: project.id,
+      paymentMethod: "stripe_card",
+      referenceId: `bnd_${Math.random().toString(36).substring(2, 9)}`
+    };
+
+    this.transactions.unshift(transaction);
+    this.saveTransactions();
+
+    const updatedProject: Project = {
+      ...project,
+      warrantyProtected: true,
+    };
+
+    try {
+      localStorage.setItem(`hsws_project_warranty_${project.id}`, "true");
+      await fetch("/api/stripe/mock-add-funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, isPending: false })
+      });
+    } catch (e) {
+      console.warn("Could not sync warranty fee:", e);
+    }
+
+    return {
+      success: true,
+      transaction,
+      updatedProject,
+    };
+  }
+
+  // 3. NEW: Purchase Official City Permit Submittal & Code Compliance Packet Export ($9.99)
+  public async purchasePermitPacket(
+    project: Project,
+    user: { id: string; fullName: string; role: UserRole }
+  ): Promise<{ success: boolean; transaction: MonetizationTransaction }> {
+    const amount = 9.99;
+    const transaction: MonetizationTransaction = {
+      id: `tx-permit-${Date.now()}`,
+      userId: user.id,
+      userName: user.fullName,
+      userRole: user.role,
+      productType: "permit_compliance_packet",
+      title: `Official City Permit & Code Submittal Packet ("${project.title.slice(0, 24)}...")`,
+      amount,
+      currency: "USD",
+      status: "succeeded",
+      timestamp: new Date().toISOString(),
+      projectId: project.id,
+      paymentMethod: "stripe_card",
+      referenceId: `pmt_${Math.random().toString(36).substring(2, 9)}`
+    };
+
+    this.transactions.unshift(transaction);
+    this.saveTransactions();
+
+    try {
+      await fetch("/api/stripe/mock-add-funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, isPending: false })
+      });
+    } catch (e) {
+      console.warn("Could not sync permit packet fee:", e);
+    }
+
+    return {
+      success: true,
+      transaction,
+    };
+  }
+
+  // 4. NEW: Equipment & Roll-Off Dumpster Rental Dispatch Booking ($25.00 referral fee)
+  public async purchaseEquipmentDispatch(
+    contractor: ContractorUser,
+    equipmentCategory: string = "20-Yard Roll-Off Dumpster",
+    durationDays: number = 7
+  ): Promise<{ success: boolean; transaction: MonetizationTransaction }> {
+    const amount = 25.00;
+    const transaction: MonetizationTransaction = {
+      id: `tx-dumpster-${Date.now()}`,
+      userId: contractor.id,
+      userName: contractor.company || contractor.fullName,
+      userRole: "contractor",
+      productType: "equipment_dumpster_dispatch",
+      title: `Commercial Equipment Dispatch (${equipmentCategory} - ${durationDays} Days)`,
+      amount,
+      currency: "USD",
+      status: "succeeded",
+      timestamp: new Date().toISOString(),
+      contractorId: contractor.id,
+      paymentMethod: "stripe_card",
+      referenceId: `eqp_${Math.random().toString(36).substring(2, 9)}`
+    };
+
+    this.transactions.unshift(transaction);
+    this.saveTransactions();
+
+    try {
+      await fetch("/api/stripe/mock-add-funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, isPending: false })
+      });
+    } catch (e) {
+      console.warn("Could not sync equipment dispatch fee:", e);
+    }
+
+    return {
+      success: true,
+      transaction,
+    };
+  }
+
+  // 5. NEW: Contractor City Spotlight 48-Hour Pin ($14.99)
+  public async purchaseSpotlightPin(
+    contractor: ContractorUser,
+    hours: number = 48
+  ): Promise<{ success: boolean; transaction: MonetizationTransaction }> {
+    const amount = 14.99;
+    const transaction: MonetizationTransaction = {
+      id: `tx-spotlight-${Date.now()}`,
+      userId: contractor.id,
+      userName: contractor.company || contractor.fullName,
+      userRole: "contractor",
+      productType: "contractor_spotlight_pin",
+      title: `Top City Hub Spotlight Pin (${hours} Hours - ${contractor.city})`,
+      amount,
+      currency: "USD",
+      status: "succeeded",
+      timestamp: new Date().toISOString(),
+      contractorId: contractor.id,
+      paymentMethod: "stripe_card",
+      referenceId: `spt_${Math.random().toString(36).substring(2, 9)}`
+    };
+
+    this.transactions.unshift(transaction);
+    this.saveTransactions();
+
+    try {
+      localStorage.setItem(`hsws_spotlight_contractor_${contractor.id}`, new Date(Date.now() + hours * 3600000).toISOString());
+      await fetch("/api/stripe/mock-add-funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount, isPending: false })
+      });
+    } catch (e) {
+      console.warn("Could not sync spotlight fee:", e);
+    }
+
+    return {
+      success: true,
+      transaction,
+    };
+  }
+
+  // 6. NEW REVENUE: Instant Same-Day Escrow Payout Express ($9.99)
+  public async purchaseInstantEscrowExpress(
+    contractor: { id: string; fullName: string; company?: string },
+    payoutAmount: number,
+    milestoneTitle: string
+  ): Promise<{ success: boolean; transaction: MonetizationTransaction }> {
+    const feeAmount = 9.99;
+    const transaction: MonetizationTransaction = {
+      id: `tx-instant-payout-${Date.now()}`,
+      userId: contractor.id,
+      userName: contractor.company || contractor.fullName,
+      userRole: "contractor",
+      productType: "instant_escrow_payout_express",
+      title: `Instant Same-Day Escrow Payout Express ($${payoutAmount.toLocaleString()} Payout - ${milestoneTitle})`,
+      amount: feeAmount,
+      currency: "USD",
+      status: "succeeded",
+      timestamp: new Date().toISOString(),
+      contractorId: contractor.id,
+      paymentMethod: "stripe_card",
+      referenceId: `rtp_${Math.random().toString(36).substring(2, 9)}`
+    };
+
+    this.transactions.unshift(transaction);
+    this.saveTransactions();
+
+    try {
+      await fetch("/api/stripe/mock-add-funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: feeAmount, isPending: false })
+      });
+    } catch (e) {
+      console.warn("Could not sync instant payout fee:", e);
+    }
+
+    return { success: true, transaction };
+  }
+
+  // 7. NEW REVENUE: Official Subcontractor Lien Waiver & 1-Year Warranty Package ($14.99)
+  public async purchaseLienWaiverPackage(
+    project: Project,
+    user: { id: string; fullName: string; role: UserRole }
+  ): Promise<{ success: boolean; transaction: MonetizationTransaction }> {
+    const feeAmount = 14.99;
+    const transaction: MonetizationTransaction = {
+      id: `tx-lien-waiver-${Date.now()}`,
+      userId: user.id,
+      userName: user.fullName,
+      userRole: user.role,
+      productType: "lien_waiver_warranty_package",
+      title: `Official Subcontractor Lien Waiver & 1-Yr Warranty Vault ("${project.title.slice(0, 24)}...")`,
+      amount: feeAmount,
+      currency: "USD",
+      status: "succeeded",
+      timestamp: new Date().toISOString(),
+      projectId: project.id,
+      paymentMethod: "stripe_card",
+      referenceId: `lnw_${Math.random().toString(36).substring(2, 9)}`
+    };
+
+    this.transactions.unshift(transaction);
+    this.saveTransactions();
+
+    try {
+      localStorage.setItem(`hsws_lien_waiver_${project.id}`, "verified_active");
+      await fetch("/api/stripe/mock-add-funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: feeAmount, isPending: false })
+      });
+    } catch (e) {
+      console.warn("Could not sync lien waiver fee:", e);
+    }
+
+    return { success: true, transaction };
+  }
+
+  // 8. NEW REVENUE: Homeowner 3D AI Architectural Remodel & Material Spec Visualizer ($19.99)
+  public async purchaseAi3dDesignPacket(
+    project: Project,
+    user: { id: string; fullName: string; role: UserRole }
+  ): Promise<{ success: boolean; transaction: MonetizationTransaction }> {
+    const feeAmount = 19.99;
+    const transaction: MonetizationTransaction = {
+      id: `tx-3d-design-${Date.now()}`,
+      userId: user.id,
+      userName: user.fullName,
+      userRole: user.role,
+      productType: "ai_3d_design_material_visualizer",
+      title: `3D AI Architectural Remodel & Material Spec Sheet ("${project.title.slice(0, 24)}...")`,
+      amount: feeAmount,
+      currency: "USD",
+      status: "succeeded",
+      timestamp: new Date().toISOString(),
+      projectId: project.id,
+      paymentMethod: "stripe_card",
+      referenceId: `3dr_${Math.random().toString(36).substring(2, 9)}`
+    };
+
+    this.transactions.unshift(transaction);
+    this.saveTransactions();
+
+    try {
+      localStorage.setItem(`hsws_3d_spec_${project.id}`, "unlocked");
+      await fetch("/api/stripe/mock-add-funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: feeAmount, isPending: false })
+      });
+    } catch (e) {
+      console.warn("Could not sync 3D design fee:", e);
+    }
+
+    return { success: true, transaction };
+  }
+
+  // 9. NEW REVENUE: Subcontractor Crew Finder Urgent 45-Mile VIP Broadcast ($19.00)
+  public async purchaseCrewVipBlast(
+    contractor: { id: string; fullName: string; company?: string },
+    trade: string,
+    city: string
+  ): Promise<{ success: boolean; transaction: MonetizationTransaction }> {
+    const feeAmount = 19.00;
+    const transaction: MonetizationTransaction = {
+      id: `tx-crew-blast-${Date.now()}`,
+      userId: contractor.id,
+      userName: contractor.company || contractor.fullName,
+      userRole: "contractor",
+      productType: "subcontractor_crew_vip_blast",
+      title: `Urgent 45-Mile Subcontractor Crew VIP Blast (${trade} - ${city})`,
+      amount: feeAmount,
+      currency: "USD",
+      status: "succeeded",
+      timestamp: new Date().toISOString(),
+      contractorId: contractor.id,
+      paymentMethod: "stripe_card",
+      referenceId: `crw_${Math.random().toString(36).substring(2, 9)}`
+    };
+
+    this.transactions.unshift(transaction);
+    this.saveTransactions();
+
+    try {
+      await fetch("/api/stripe/mock-add-funds", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ amount: feeAmount, isPending: false })
+      });
+    } catch (e) {
+      console.warn("Could not sync crew blast fee:", e);
+    }
+
+    return { success: true, transaction };
+  }
 }
 
 export const monetizationService = new MonetizationService();
+

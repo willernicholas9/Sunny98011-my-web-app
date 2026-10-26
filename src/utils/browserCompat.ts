@@ -98,6 +98,33 @@ if (typeof window !== "undefined") {
   updateVh();
   window.addEventListener("resize", updateVh, { passive: true });
   window.addEventListener("orientationchange", updateVh, { passive: true });
+
+  // 8. Ignore WebSocket / Vite HMR connection notices in preview iframe
+  window.addEventListener("error", (event) => {
+    const msg = event?.message || "";
+    const filename = event?.filename || "";
+    if (
+      msg.includes("WebSocket") ||
+      msg.includes("vite") ||
+      filename.includes("@vite/client") ||
+      filename.includes("vite-hmr")
+    ) {
+      event.preventDefault?.();
+      return true;
+    }
+  });
+
+  window.addEventListener("unhandledrejection", (event) => {
+    const reason = event?.reason;
+    const msg = typeof reason === "string" ? reason : reason?.message || "";
+    if (
+      msg.includes("WebSocket") ||
+      msg.includes("vite") ||
+      String(reason).includes("@vite/client")
+    ) {
+      event.preventDefault?.();
+    }
+  });
 }
 
 export default SafeStorage;

@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { ContractorUser, Review, BeforeAfterPair } from "../types";
-import { Star, ShieldAlert, BadgeCheck, MessageSquare, Plus, Check, FileDown, Printer, Download, X, Award, ShieldCheck, FileText, CheckCircle2, Sparkles } from "lucide-react";
+import { Star, ShieldAlert, BadgeCheck, MessageSquare, Plus, Check, FileDown, Printer, Download, X, Award, ShieldCheck, FileText, CheckCircle2, Sparkles, Pin } from "lucide-react";
 import ContractorPortfolioGallery from "./ContractorPortfolioGallery";
+import { monetizationService } from "../services/monetizationService";
 
 interface ContractorProfileCardProps {
   key?: string | number;
@@ -405,6 +406,29 @@ function ContractorProfileCardComponent({
                 {contractor.insuranceUrl && (
                   <span className="inline-flex items-center gap-0.5 text-[9px] bg-cyan-50 text-cyan-750 font-semibold px-1.5 py-0.5 border border-cyan-200 rounded-full">
                     <BadgeCheck className="w-2.5 h-2.5" /> Insured
+                  </span>
+                )}
+                {(contractor.verifiedProBadge || (typeof window !== "undefined" && localStorage.getItem(`hsws_contractor_verified_badge_${contractor.id}`) === "true")) ? (
+                  <span className="inline-flex items-center gap-1 text-[9px] bg-amber-100 text-amber-900 font-extrabold px-2 py-0.5 border border-amber-300 rounded-full shadow-2xs" title="Official state license and criminal background checked">
+                    <Award className="w-3 h-3 text-amber-600" /> Verified License & Background
+                  </span>
+                ) : currentUser && currentUser.id === contractor.id && currentUser.role === "contractor" ? (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      const res = await monetizationService.purchaseVerifiedBadge(contractor);
+                      alert(res.message);
+                      window.location.reload();
+                    }}
+                    className="inline-flex items-center gap-1 text-[9px] bg-amber-50 hover:bg-amber-100 text-amber-900 font-extrabold px-2 py-0.5 border border-amber-300 rounded-full cursor-pointer transition shadow-2xs"
+                    title="Get official state license and background check verified"
+                  >
+                    <Award className="w-2.5 h-2.5 text-amber-600" /> + Order Verified Badge ($19)
+                  </button>
+                ) : null}
+                {typeof window !== "undefined" && Boolean(localStorage.getItem(`hsws_spotlight_contractor_${contractor.id}`)) && (
+                  <span className="inline-flex items-center gap-1 text-[9px] bg-fuchsia-100 text-fuchsia-900 font-extrabold px-2 py-0.5 border border-fuchsia-300 rounded-full shadow-2xs animate-pulse" title="City Hub Top Spotlight Pin active">
+                    <Pin className="w-2.5 h-2.5 text-fuchsia-600" /> City Spotlight Pro
                   </span>
                 )}
               </div>

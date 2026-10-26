@@ -60,10 +60,10 @@ export default function UserAcquisitionSprintHub({
     return () => unsub();
   }, []);
 
-  // Update countdown clock to end of September 2026
+  // Update countdown clock to October 28th, 2026
   useEffect(() => {
     const updateCountdown = () => {
-      const target = new Date("2026-09-30T23:59:59").getTime();
+      const target = new Date("2026-10-28T23:59:59").getTime();
       const now = Date.now();
       const diff = Math.max(0, target - now);
 
@@ -164,13 +164,13 @@ export default function UserAcquisitionSprintHub({
           <div>
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-amber-500/20 border border-amber-500/40 text-amber-400 text-xs font-black tracking-wide uppercase mb-3">
               <Flame className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-              <span>Month-End Sprint Directive • Target: 1,000 Users</span>
+              <span>Launch Directive • First 1,000 Signups Enjoy 1 Month Free • Until Oct 28, 2026</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-2">
-              <span>🎯 1,000 New Users by End of Month</span>
+              <span>🎯 1,000 Signups • 1 Month Free Platform Use</span>
             </h1>
             <p className="text-zinc-300 text-sm mt-1 max-w-2xl leading-relaxed">
-              Autonomous multi-channel acquisition engine scaling verified homeowners and licensed contractors across target metros before September 30, 2026.
+              First 1,000 signups (Contractors & Homeowners) enjoy 1 full month of 100% free use! Contractors get 1 Month Pro Free ($29.99/mo waived) and Homeowners get $0 project acceptance fees ($7.99/$20.00 waived). Running until October 28th, 2026.
             </p>
           </div>
 

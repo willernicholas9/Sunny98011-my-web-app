@@ -12,8 +12,10 @@ export default defineConfig(() => {
       },
     },
     build: {
-      target: ['es2015', 'safari12', 'ios12', 'chrome60', 'edge18', 'firefox60'],
-      cssTarget: ['safari12', 'ios12', 'chrome60', 'firefox60'],
+      target: 'esnext',
+      cssCodeSplit: true,
+      minify: 'esbuild' as const,
+      chunkSizeWarningLimit: 1500,
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

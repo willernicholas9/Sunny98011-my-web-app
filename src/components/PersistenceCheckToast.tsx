@@ -21,9 +21,10 @@ import {
 
 interface PersistenceCheckToastProps {
   onSyncManual?: () => void;
+  onOpenSyncStatusModal?: () => void;
 }
 
-export default function PersistenceCheckToast({ onSyncManual }: PersistenceCheckToastProps) {
+export default function PersistenceCheckToast({ onSyncManual, onOpenSyncStatusModal }: PersistenceCheckToastProps) {
   const [state, setState] = useState<PersistenceState>(persistenceCheck.getState());
   const [showQueueModal, setShowQueueModal] = useState(false);
   const [isMinimized, setIsMinimized] = useState(false);
@@ -179,7 +180,13 @@ export default function PersistenceCheckToast({ onSyncManual }: PersistenceCheck
                   {state.pendingCount > 0 && (
                     <button
                       type="button"
-                      onClick={() => setShowQueueModal(true)}
+                      onClick={() => {
+                        if (onOpenSyncStatusModal) {
+                          onOpenSyncStatusModal();
+                        } else {
+                          setShowQueueModal(true);
+                        }
+                      }}
                       className="text-[11px] font-bold text-amber-400 hover:text-amber-300 underline cursor-pointer"
                     >
                       View Queue →
@@ -212,7 +219,13 @@ export default function PersistenceCheckToast({ onSyncManual }: PersistenceCheck
                   {state.pendingCount > 0 && (
                     <button
                       type="button"
-                      onClick={() => setShowQueueModal(true)}
+                      onClick={() => {
+                        if (onOpenSyncStatusModal) {
+                          onOpenSyncStatusModal();
+                        } else {
+                          setShowQueueModal(true);
+                        }
+                      }}
                       className="px-3 py-2 rounded-xl bg-amber-900/60 hover:bg-amber-800/80 text-amber-200 text-xs font-bold border border-amber-600/40 transition cursor-pointer"
                     >
                       Inspect ({state.pendingCount})

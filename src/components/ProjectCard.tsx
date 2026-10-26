@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { QRCodeSVG } from "qrcode.react";
-import { Project, Bid, BaseUser } from "../types";
+import { Project, Bid, BaseUser, ProjectMilestone } from "../types";
 import {
   MapPin,
   Phone,
@@ -48,15 +48,19 @@ import {
 } from "lucide-react";
 import { isProjectFavorite, toggleFavoriteProject, FAVORITES_EVENT } from "../utils/favoritesStorage";
 import ProjectMiniMap from "./ProjectMiniMap";
+import PropertyCoordinateThumbnailMap from "./PropertyCoordinateThumbnailMap";
 import { CITIES, getDistance } from "../data/cities";
 import { monetizationService } from "../services/monetizationService";
 import ProjectShareImageGenerator from "./ProjectShareImageGenerator";
 import { applyOpenGraphMetaTags, generateProjectOGImage } from "../services/openGraphGenerator";
 import QuickBidModal from "./project-board/QuickBidModal";
+import JobNegotiationModal from "./project-board/JobNegotiationModal";
+import BidPaymentInitiationModal from "./project-board/BidPaymentInitiationModal";
 import InvoiceEstimateGeneratorModal from "./InvoiceEstimateGeneratorModal";
 import MilestoneEscrowManagerModal from "./MilestoneEscrowManagerModal";
 import BeforeAfterShowcaseModal from "./BeforeAfterShowcaseModal";
 import MaterialAndPermitEstimatorModal from "./MaterialAndPermitEstimatorModal";
+import ProjectMilestoneTracker from "./project-board/ProjectMilestoneTracker";
 
 interface ProjectCardProps {
   key?: string | number;
@@ -77,6 +81,7 @@ interface ProjectCardProps {
   onViewOnMap?: (projectId: string) => void;
   onSimulateContractorBid?: (projectId: string) => void;
   onUpdateProjectImages?: (projectId: string, images: string[]) => void;
+  onUpdateMilestones?: (projectId: string, updatedMilestones: ProjectMilestone[]) => void;
   isFavorite?: boolean;
   onToggleFavorite?: (projectId: string) => void;
   onOpenMonetizationModal?: (kind: "contractor_pro" | "lead_unlock" | "rush_dispatch" | "project_boost", project?: Project) => void;
@@ -100,10 +105,15 @@ function ProjectCardComponent({
   onViewOnMap,
   onSimulateContractorBid,
   onUpdateProjectImages,
+  onUpdateMilestones,
   isFavorite: externalIsFavorite,
   onToggleFavorite,
   onOpenMonetizationModal,
 }: ProjectCardProps) {
+  const [showInCardMilestones, setShowInCardMilestones] = useState<boolean>(
+    () => project.status === "accepted" || project.status === "completed" || (project.agreedByCustomer && project.agreedByContractor) || Boolean(project.milestones && project.milestones.length > 0)
+  );
+
   const [localIsFavorite, setLocalIsFavorite] = useState<boolean>(() => {
     if (typeof externalIsFavorite === "boolean") return externalIsFavorite;
     return isProjectFavorite(project.id);
@@ -158,6 +168,8 @@ function ProjectCardComponent({
   const [counterAmount, setCounterAmount] = useState<string>("");
   const [counterMessage, setCounterMessage] = useState<string>("");
   const [activeCounterBidId, setActiveCounterBidId] = useState<string | null>(null);
+  const [selectedBidForNegotiation, setSelectedBidForNegotiation] = useState<Bid | null>(null);
+  const [selectedBidForPayment, setSelectedBidForPayment] = useState<Bid | null>(null);
   const [shareSuccessToast, setShareSuccessToast] = useState<string | null>(null);
   const [showScopeModal, setShowScopeModal] = useState(false);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
@@ -306,7 +318,7 @@ function ProjectCardComponent({
   const isLeadPurchased = monetizationService.isLeadUnlocked(project.id, currentUser?.id);
   const canSeePrivateDetails = isOwner || (isAcceptedContractor && isFullyAgreedAndAccepted) || isLeadPurchased || isProContractor;
   const contractorBidsCount = currentUser?.role === "contractor" ? bids.filter((b) => b.contractorId === currentUser?.id).length : 0;
-  const projectServiceFee = project.budget <= 25000 ? 5 : 20;
+  const projectServiceFee = project.budget <= 25000 ? 7.99 : 20;
 
   const baseCity = currentCityName || currentUser?.city || "Austin";
   const userCityObj = CITIES.find((c) => c.name.toLowerCase() === baseCity.toLowerCase()) || CITIES[0];
@@ -625,10 +637,59 @@ function ProjectCardComponent({
             </div>
           )}
 
+          {/* Exact Property Location Coordinates Thumbnail Map (when homeowner provides address coordinates) */}
+          {project.coordinates && project.coordinates.lat && project.coordinates.lng && (
+            <div className="pt-1.5">
+              <PropertyCoordinateThumbnailMap
+                coordinates={project.coordinates}
+                address={project.address}
+                city={project.city}
+                state={project.state}
+                zipCode={project.zipCode}
+                compact={true}
+                onOpenFullMap={() => onViewOnMap && onViewOnMap(project.id)}
+              />
+            </div>
+          )}
+
           {/* Toast Notification */}
           {shareSuccessToast && (
             <div className="p-2 bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold rounded-xl text-center animate-in fade-in">
               ✓ {shareSuccessToast}
+            </div>
+          )}
+
+          {/* Milestone Progress & Partial Escrow Payout Tracker */}
+          {(project.status === "accepted" || project.status === "completed" || (project.agreedByCustomer && project.agreedByContractor) || showInCardMilestones) ? (
+            <div className="pt-2 animate-in fade-in" id={`milestone-tracker-wrapper-${project.id}`}>
+              <ProjectMilestoneTracker
+                project={project}
+                currentUser={currentUser}
+                onUpdateMilestones={(updatedMs) => {
+                  if (onUpdateMilestones) {
+                    onUpdateMilestones(project.id, updatedMs);
+                  }
+                }}
+                onCompleteProject={onCompleteProject}
+              />
+            </div>
+          ) : (
+            <div className="pt-1.5">
+              <button
+                type="button"
+                onClick={() => setShowInCardMilestones(true)}
+                className="w-full py-2.5 px-3.5 bg-gradient-to-r from-emerald-50 via-teal-50 to-emerald-50 hover:from-emerald-100 hover:to-teal-100 border border-emerald-300 rounded-xl text-emerald-950 font-extrabold text-xs flex items-center justify-between transition cursor-pointer shadow-3xs group"
+                id={`open-milestone-tracker-btn-${project.id}`}
+              >
+                <span className="flex items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                  <span>Staged Escrow Milestone Tracker (Demo, Rough-in, Finish Payouts)</span>
+                </span>
+                <span className="text-[11px] font-black text-emerald-700 flex items-center gap-1 group-hover:translate-x-0.5 transition-transform">
+                  <span>Open Tracker</span>
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </span>
+              </button>
             </div>
           )}
         </div>
@@ -810,69 +871,178 @@ function ProjectCardComponent({
             {/* Bids List & Negotiation */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between">
-                <h4 className="text-xs font-black text-zinc-900 uppercase tracking-wider">
-                  Submitted Contractor Bids ({bids.length})
-                </h4>
-                {bids.length > 1 && isOwner && (
-                  <button
-                    type="button"
-                    onClick={handleOpenShareModal}
-                    className="text-[11px] font-bold text-amber-700 hover:text-amber-800"
-                  >
-                    Open Share Studio
-                  </button>
-                )}
+                <div className="flex items-center gap-2">
+                  <h4 className="text-xs font-black text-zinc-900 uppercase tracking-wider">
+                    Submitted Contractor Bids ({bids.length})
+                  </h4>
+                  {bids.length > 0 && (
+                    <span className="text-[10px] bg-amber-100 text-amber-900 font-bold px-2 py-0.5 rounded-full border border-amber-300">
+                      Negotiations Active
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {currentUser?.role === "contractor" && project.status === "open" && !bids.some(b => b.contractorId === currentUser.id) && (
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickBidModal(true)}
+                      className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-3 py-1.5 rounded-xl text-[11px] transition shadow-xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <Zap className="w-3 h-3" />
+                      <span>Submit Bid Proposal</span>
+                    </button>
+                  )}
+
+                  {bids.length > 1 && isOwner && (
+                    <button
+                      type="button"
+                      onClick={handleOpenShareModal}
+                      className="text-[11px] font-bold text-amber-700 hover:text-amber-800"
+                    >
+                      Open Share Studio
+                    </button>
+                  )}
+                </div>
               </div>
 
               {bids.length === 0 ? (
-                <div className="p-4 bg-zinc-50 rounded-xl border border-zinc-200 text-center text-xs text-zinc-500">
-                  No bids submitted yet. Be the first contractor to place a proposal!
+                <div className="p-5 bg-zinc-50 rounded-2xl border border-zinc-200 text-center space-y-2">
+                  <p className="text-xs text-zinc-500">
+                    No bids submitted yet. Be the first contractor to place a proposal!
+                  </p>
+                  {currentUser?.role === "contractor" && project.status === "open" && (
+                    <button
+                      type="button"
+                      onClick={() => setShowQuickBidModal(true)}
+                      className="inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black px-4 py-2 rounded-xl text-xs transition shadow-sm cursor-pointer"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>Place First Competitive Bid ($)</span>
+                    </button>
+                  )}
                 </div>
               ) : (
-                <div className="space-y-2">
+                <div className="space-y-2.5">
                   {bids.map((bid) => {
                     const isBidder = currentUser && currentUser.id === bid.contractorId;
+                    const hasHistory = bid.history && bid.history.length > 0;
+                    const isAcceptedBid = bid.status === "accepted";
+                    const isDeclinedBid = bid.status === "declined";
+
                     return (
                       <div
                         key={bid.id}
-                        className="bg-white border border-zinc-200 rounded-xl p-3.5 space-y-2 shadow-3xs"
+                        className={`border rounded-2xl p-4 space-y-2.5 transition shadow-2xs ${
+                          isAcceptedBid
+                            ? "bg-emerald-50/40 border-emerald-300 ring-1 ring-emerald-400/30"
+                            : isDeclinedBid
+                            ? "bg-zinc-50 border-zinc-200 opacity-60"
+                            : "bg-white border-zinc-200 hover:border-zinc-300"
+                        }`}
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <div>
+                        {/* Bid Header & Status */}
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
                             <span className="font-extrabold text-xs text-zinc-900">{bid.contractorName}</span>
-                            <span className="text-[11px] text-zinc-400 ml-2">
+                            {bid.contractorCompany && (
+                              <span className="text-[11px] text-zinc-500 font-medium hidden sm:inline">
+                                ({bid.contractorCompany})
+                              </span>
+                            )}
+                            <span className="text-[10px] text-zinc-400 ml-1">
                               {new Date(bid.createdAt).toLocaleDateString()}
                             </span>
+
+                            {/* Status Pills */}
+                            {isAcceptedBid ? (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-900 border border-emerald-300 px-2 py-0.5 rounded-full">
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Hired & In Escrow
+                              </span>
+                            ) : isDeclinedBid ? (
+                              <span className="text-[9px] font-bold uppercase tracking-wider bg-zinc-200 text-zinc-600 px-2 py-0.5 rounded-full">
+                                Declined
+                              </span>
+                            ) : bid.status === "counter_by_customer" ? (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-cyan-100 text-cyan-900 border border-cyan-300 px-2 py-0.5 rounded-full">
+                                💬 Customer Counter-Offer Sent
+                              </span>
+                            ) : bid.status === "counter_by_contractor" ? (
+                              <span className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider bg-amber-100 text-amber-900 border border-amber-300 px-2 py-0.5 rounded-full">
+                                💬 Contractor Revised Proposal
+                              </span>
+                            ) : (
+                              <span className="text-[9px] font-bold uppercase tracking-wider bg-zinc-100 text-zinc-600 border border-zinc-200 px-2 py-0.5 rounded-full">
+                                ⏳ Pending Review
+                              </span>
+                            )}
                           </div>
-                          <span className="text-sm font-black text-emerald-700">
-                            ${bid.amount.toLocaleString()}
-                          </span>
+
+                          <div className="flex items-center gap-2">
+                            {hasHistory && (
+                              <span className="text-[10px] font-mono text-zinc-400 line-through">
+                                ${(bid.history![0].amount).toLocaleString()}
+                              </span>
+                            )}
+                            <span className="text-base font-black text-emerald-700 font-mono">
+                              ${bid.amount.toLocaleString()}
+                            </span>
+                          </div>
                         </div>
 
-                        <p className="text-xs text-zinc-600 leading-relaxed bg-zinc-50 p-2.5 rounded-lg border border-zinc-150">
+                        {/* Bid Message */}
+                        <p className="text-xs text-zinc-700 leading-relaxed bg-zinc-50/80 p-2.5 rounded-xl border border-zinc-150">
                           "{bid.message}"
                         </p>
 
-                        {/* Actions on Bids */}
-                        <div className="flex items-center justify-end gap-2 pt-1">
-                          {isOwner && project.status === "open" && (
-                            <>
-                              <button
-                                type="button"
-                                onClick={() => onStartChat && onStartChat(bid.contractorId, bid.contractorName, "contractor")}
-                                className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold px-3 py-1.5 rounded-lg text-[11px] transition"
-                              >
-                                💬 Chat
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => onAcceptBid && onAcceptBid(bid.id)}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold px-3 py-1.5 rounded-lg text-[11px] transition flex items-center gap-1"
-                              >
-                                <span>Accept Bid</span>
-                                <ArrowRight className="w-3 h-3" />
-                              </button>
-                            </>
+                        {/* Negotiation Rounds Indicator */}
+                        {hasHistory && (
+                          <div className="flex items-center justify-between text-[11px] text-zinc-500 bg-amber-50/50 border border-amber-200/60 px-3 py-1.5 rounded-xl">
+                            <span className="font-semibold text-amber-900 flex items-center gap-1">
+                              <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                              <span>{bid.history!.length} Negotiation Rounds Exchanged</span>
+                            </span>
+                            <span className="font-mono text-xs text-zinc-600">
+                              Current Agreed Target: <strong className="text-emerald-700">${bid.amount.toLocaleString()}</strong>
+                            </span>
+                          </div>
+                        )}
+
+                        {/* Actions on Bids: Negotiation, 1-on-1 Chat, Accept & Escrow Payment */}
+                        <div className="flex flex-wrap items-center justify-end gap-2 pt-1 border-t border-zinc-100">
+                          <button
+                            type="button"
+                            onClick={() => onStartChat && onStartChat(bid.contractorId, bid.contractorName, "contractor")}
+                            className="bg-zinc-100 hover:bg-zinc-200 text-zinc-700 font-bold px-3 py-1.5 rounded-xl text-[11px] transition flex items-center gap-1 cursor-pointer"
+                            title="Direct private 1-on-1 chat"
+                          >
+                            <MessageSquare className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Chat</span>
+                          </button>
+
+                          {/* Negotiation Button for Customer or Bidder */}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedBidForNegotiation(bid)}
+                            className="bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 font-extrabold px-3 py-1.5 rounded-xl text-[11px] transition flex items-center gap-1 cursor-pointer shadow-3xs"
+                            title="Open interactive price & terms negotiation center"
+                          >
+                            <Sparkles className="w-3.5 h-3.5 text-amber-600" />
+                            <span>Negotiate / Counter-Offer</span>
+                          </button>
+
+                          {/* Accept & Pay Button for Project Owner */}
+                          {isOwner && project.status === "open" && !isAcceptedBid && (
+                            <button
+                              type="button"
+                              onClick={() => setSelectedBidForPayment(bid)}
+                              className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-4 py-1.5 rounded-xl text-[11px] transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95"
+                              title="Accept bid proposal and initiate secure milestone escrow payment"
+                            >
+                              <ShieldCheck className="w-3.5 h-3.5" />
+                              <span>Accept & Pay Escrow (${bid.amount.toLocaleString()})</span>
+                              <ArrowRight className="w-3 h-3" />
+                            </button>
                           )}
                         </div>
                       </div>
@@ -975,6 +1145,53 @@ function ProjectCardComponent({
             if (onPlaceBid) {
               onPlaceBid(amount, message);
             }
+          }}
+        />
+      )}
+
+      {/* 5b. Job Negotiation Center Modal */}
+      {selectedBidForNegotiation && (
+        <JobNegotiationModal
+          project={project}
+          bid={selectedBidForNegotiation}
+          currentUser={currentUser}
+          onClose={() => setSelectedBidForNegotiation(null)}
+          onAcceptBid={(bidId) => {
+            const target = bids.find((b) => b.id === bidId) || selectedBidForNegotiation;
+            setSelectedBidForNegotiation(null);
+            setSelectedBidForPayment(target);
+          }}
+          onCounterBid={(bidId, amount, msg) => {
+            if (onCounterBid) {
+              onCounterBid(bidId, amount, msg);
+            }
+          }}
+          onContractorAcceptCounter={onContractorAcceptCounter}
+          onContractorDeclineCounter={onContractorDeclineCounter}
+          onContractorCounter={onContractorCounter}
+          onStartChat={onStartChat}
+          onProceedToPayment={(targetBid) => {
+            setSelectedBidForNegotiation(null);
+            setSelectedBidForPayment(targetBid);
+          }}
+        />
+      )}
+
+      {/* 5c. Bid Acceptance & Escrow Payment Initiation Modal */}
+      {selectedBidForPayment && (
+        <BidPaymentInitiationModal
+          project={project}
+          bid={selectedBidForPayment}
+          currentUser={currentUser}
+          onClose={() => setSelectedBidForPayment(null)}
+          onConfirmPayment={async (finalAmount, paymentMethod, signature) => {
+            if (onAcceptBid) {
+              onAcceptBid(selectedBidForPayment.id);
+            }
+            if (onAgreeToProject) {
+              onAgreeToProject();
+            }
+            setSelectedBidForPayment(null);
           }}
         />
       )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Hammer, CircleAlert, Mail, LogOut, LogIn, HardHat, Bot, Wifi, WifiOff, Cloud, RefreshCw, Crown, Smartphone, Apple, Flame, Target } from "lucide-react";
+import { Hammer, CircleAlert, Mail, LogOut, LogIn, HardHat, Bot, Wifi, WifiOff, Cloud, RefreshCw, Crown, Smartphone, Apple, Flame, Target, Briefcase, Gift, Gauge } from "lucide-react";
 import { persistenceCheck } from "../services/persistenceCheck";
 import { PersistenceState } from "../types/persistenceTypes";
 import { acquisitionSprintService } from "../services/acquisitionSprintService";
@@ -16,6 +16,10 @@ interface NavbarProps {
   emailCount: number;
   onOpenAppStoreModal?: () => void;
   onOpenSprintModal?: () => void;
+  onOpenAreaJobsBoard?: () => void;
+  onOpenDailyPerformanceModal?: () => void;
+  onOpenReferralModal?: () => void;
+  onOpenSyncStatusModal?: () => void;
 }
 
 export default function Navbar({
@@ -28,6 +32,10 @@ export default function Navbar({
   emailCount,
   onOpenAppStoreModal,
   onOpenSprintModal,
+  onOpenAreaJobsBoard,
+  onOpenDailyPerformanceModal,
+  onOpenReferralModal,
+  onOpenSyncStatusModal,
 }: NavbarProps) {
   const [persistenceState, setPersistenceState] = useState<PersistenceState>(persistenceCheck.getState());
   const [sprintTotal, setSprintTotal] = useState<number>(() => acquisitionSprintService.getState().totalAcquired);
@@ -72,11 +80,12 @@ export default function Navbar({
           </span>
           <button
             type="button"
-            onClick={() => persistenceCheck.toggleSimulatedOffline()}
-            className="text-[10px] font-bold text-amber-900 bg-amber-200/70 hover:bg-amber-200 px-2 py-0.5 rounded-md transition cursor-pointer shrink-0 ml-1"
-            title="Toggle or test connection"
+            onClick={onOpenSyncStatusModal || (() => persistenceCheck.toggleSimulatedOffline())}
+            className="text-[10px] font-bold text-amber-900 bg-amber-200/90 hover:bg-amber-300 px-2 py-0.5 rounded-md transition cursor-pointer shrink-0 ml-1 border border-amber-300"
+            title="Open Sync Status history modal to see queued local actions"
+            id="offline-banner-view-sync-btn"
           >
-            Test Reconnect
+            {persistenceState.pendingCount > 0 ? `View ${persistenceState.pendingCount} Queued Action(s)` : "Sync Status"}
           </button>
         </div>
       )}
@@ -214,20 +223,65 @@ export default function Navbar({
 
           {/* Right actions */}
           <div className="flex items-center gap-2 sm:gap-2.5">
+            {/* Area Jobs Board Pop-up Trigger Button */}
+            {onOpenAreaJobsBoard && (
+              <button
+                type="button"
+                onClick={onOpenAreaJobsBoard}
+                title="Open Area Jobs Board"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 shadow-2xs transition duration-150 active:scale-95 cursor-pointer shrink-0"
+                id="navbar-area-jobs-btn"
+              >
+                <Briefcase className="w-3.5 h-3.5 text-amber-700" />
+                <span className="hidden sm:inline">Area Jobs</span>
+                <span className="sm:hidden inline">Jobs</span>
+              </button>
+            )}
+
             {/* 1,000 Users Month-End Sprint Button */}
             <button
               type="button"
               onClick={onOpenSprintModal}
-              title="Target: 1,000 New Users by End of Month Sprint Hub"
+              title="First 1,000 Signups Enjoy 1 Month Free Use (Contractors & Homeowners) • Runs until October 28th, 2026"
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-gradient-to-r from-amber-500 via-amber-400 to-emerald-400 text-zinc-950 shadow-xs border border-amber-300 hover:brightness-105 active:scale-95 transition cursor-pointer shrink-0"
               id="navbar-sprint-btn"
             >
               <Flame className="w-3.5 h-3.5 fill-zinc-950 text-zinc-950 animate-pulse" />
-              <span className="font-black tracking-tight">1k Users Sprint</span>
+              <span className="font-black tracking-tight">1k Users (1 Mo Free)</span>
               <span className="bg-zinc-950/85 text-amber-300 px-1.5 py-0.5 rounded text-[10px] font-mono font-black hidden sm:inline">
                 {sprintTotal}/1k
               </span>
             </button>
+
+            {/* $25 Referral Credit Button */}
+            {onOpenReferralModal && (
+              <button
+                type="button"
+                onClick={onOpenReferralModal}
+                title="Get & Give $25.00 Referral Credit to Neighbors"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-amber-500 hover:bg-amber-600 text-white shadow-xs transition duration-150 active:scale-95 cursor-pointer shrink-0"
+                id="navbar-referral-credit-btn"
+              >
+                <Gift className="w-3.5 h-3.5 animate-bounce" />
+                <span className="hidden sm:inline">$25 Referral</span>
+                <span className="sm:hidden inline">$25</span>
+              </button>
+            )}
+
+            {/* Daily Speed & Performance Check Diagnostic Button */}
+            {onOpenDailyPerformanceModal && (
+              <button
+                type="button"
+                onClick={onOpenDailyPerformanceModal}
+                title="Daily Speed & Peak Performance Diagnostic (60-120 FPS • Sub-millisecond Latency)"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold bg-zinc-100 hover:bg-zinc-200 text-zinc-800 border border-zinc-300 transition duration-150 active:scale-95 cursor-pointer shrink-0"
+                id="navbar-speed-audit-btn"
+              >
+                <Gauge className="w-3.5 h-3.5 text-emerald-600 animate-pulse" />
+                <span className="font-mono font-bold text-[11px]">60+ FPS</span>
+                <span className="hidden sm:inline text-[10px] text-emerald-700 font-black uppercase">Peak</span>
+              </button>
+            )}
 
             {/* Apple App Store & iOS Install Button */}
             <button
@@ -246,13 +300,16 @@ export default function Navbar({
             <button
               type="button"
               onClick={() => {
-                // Toggle simulation for quick tester convenience
-                persistenceCheck.toggleSimulatedOffline();
+                if (onOpenSyncStatusModal) {
+                  onOpenSyncStatusModal();
+                } else {
+                  persistenceCheck.toggleSimulatedOffline();
+                }
               }}
               title={
                 persistenceState.isOnline
-                  ? "Connection Status: Online & Cloud Synced. Click to simulate Offline mode."
-                  : `Offline: Changes Queued (${persistenceState.pendingCount} update(s) stored locally). Click to restore Online mode.`
+                  ? "Connection Status: Online & Cloud Synced. Click to open Sync Status & History."
+                  : `Offline: Changes Queued (${persistenceState.pendingCount} update(s) stored locally). Click to open Sync Status history.`
               }
               className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold border transition cursor-pointer shrink-0 ${
                 persistenceState.isOnline
@@ -265,7 +322,12 @@ export default function Navbar({
                 <>
                   <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
                   <Wifi className="w-3.5 h-3.5 text-emerald-600 hidden sm:inline" />
-                  <span className="hidden sm:inline">Online</span>
+                  <span className="hidden sm:inline">Sync Status</span>
+                  {persistenceState.pendingCount > 0 && (
+                    <span className="bg-amber-200 text-amber-950 px-1.5 py-0.2 rounded font-mono text-[10px] font-black ml-0.5">
+                      {persistenceState.pendingCount}
+                    </span>
+                  )}
                 </>
               ) : (
                 <>
@@ -275,13 +337,11 @@ export default function Navbar({
                   </span>
                   <WifiOff className="w-3.5 h-3.5 text-amber-700 shrink-0" />
                   <span className="whitespace-nowrap font-bold text-amber-950">
-                    Offline: Changes Queued
+                    Sync Status
                   </span>
-                  {persistenceState.pendingCount > 0 && (
-                    <span className="bg-amber-200 text-amber-950 px-1.5 py-0.2 rounded font-mono text-[10px] font-black ml-0.5">
-                      {persistenceState.pendingCount}
-                    </span>
-                  )}
+                  <span className="bg-amber-200 text-amber-950 px-1.5 py-0.2 rounded font-mono text-[10px] font-black ml-0.5">
+                    {persistenceState.pendingCount}
+                  </span>
                 </>
               )}
             </button>
@@ -387,6 +447,34 @@ export default function Navbar({
             <Apple className="w-3 h-3 text-white" />
             <span>App Store</span>
           </button>
+          {onOpenDailyPerformanceModal && (
+            <button
+              onClick={onOpenDailyPerformanceModal}
+              className="px-2.5 py-1 text-[10px] font-extrabold rounded-lg transition bg-emerald-50 text-emerald-950 border border-emerald-300 flex items-center gap-1"
+              id="mobile-nav-speed-btn"
+            >
+              <Gauge className="w-3 h-3 text-emerald-600 animate-pulse" />
+              <span>Speed: Peak</span>
+            </button>
+          )}
+          {onOpenSyncStatusModal && (
+            <button
+              onClick={onOpenSyncStatusModal}
+              className={`px-2.5 py-1 text-[10px] font-extrabold rounded-lg transition flex items-center gap-1 ${
+                persistenceState.isOnline
+                  ? "bg-zinc-100 text-zinc-800 border border-zinc-300"
+                  : "bg-amber-100 text-amber-950 border border-amber-400 animate-pulse font-black"
+              }`}
+              id="mobile-nav-sync-status-btn"
+            >
+              {persistenceState.isOnline ? (
+                <Wifi className="w-3 h-3 text-emerald-600" />
+              ) : (
+                <WifiOff className="w-3 h-3 text-amber-700" />
+              )}
+              <span>Sync {persistenceState.pendingCount > 0 ? `(${persistenceState.pendingCount})` : "Status"}</span>
+            </button>
+          )}
           {(currentUser?.role === "owner" || currentUser?.isPlatformOwner || currentUser?.username === "nwiller9185") && (
             <>
               <button

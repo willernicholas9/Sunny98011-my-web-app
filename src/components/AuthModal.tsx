@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { UserRole } from "../types";
-import { X, User, Lock, Mail, Phone, CreditCard, KeyRound, CheckSquare, Eye, EyeOff, ShieldCheck, FileText, CheckCircle, Save, Check } from "lucide-react";
+import { X, User, Lock, Mail, Phone, CreditCard, KeyRound, CheckSquare, Eye, EyeOff, ShieldCheck, FileText, CheckCircle, Save, Check, Sparkles, Gift, Flame, Zap } from "lucide-react";
 import { CITIES } from "../data/cities";
+import { acquisitionSprintService } from "../services/acquisitionSprintService";
 
 interface AuthModalProps {
   onClose: () => void;
@@ -156,13 +157,22 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         rawUser.trades = selectedTrades.length > 0 ? selectedTrades : ["General Handyman Projects"];
         rawUser.insuranceUrl = insuranceUrl || undefined;
         rawUser.insuranceName = insuranceName || undefined;
-        rawUser.subscriptionActive = true; // Subscribed for $20/month
+        rawUser.subscriptionActive = true; // 1 Month Free under promo!
         rawUser.emailNotificationsEnabled = emailNotifications;
         rawUser.availableNow = availableNow;
         rawUser.reviews = [];
       }
 
-      onSuccess(rawUser);
+      // Automatically enroll in the First 1,000 Signups 1-Month Free Platform Use promo (running until October 28, 2026)
+      const enrolledUser = acquisitionSprintService.enrollUserInFirst1000Promo(rawUser);
+
+      if (enrolledUser.first1000Promo?.isEligible) {
+        alert(
+          `🎉 CONGRATULATIONS!\nYou are Early Adopter #${enrolledUser.first1000Promo.spotNumber} of the first 1,000 signups!\n\n🎁 1 MONTH 100% FREE PLATFORM USE ACTIVE!\n• ${role === "contractor" ? "Contractor Pro membership is 100% FREE ($0.00 today) with unlimited leads!" : "Customer Acceptance fees are 100% WAIVED ($0.00) with free project priority boost!"}\n• Valid through October 28th, 2026!`
+        );
+      }
+
+      onSuccess(enrolledUser);
     } else {
       // Mock Login
       // Check preset lists, or simulate login success
@@ -239,6 +249,54 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
         </div>
 
         <form onSubmit={handleFormSubmit} className="p-6 space-y-6">
+          {/* First 1,000 Signups 1-Month Free Platform Use Banner (Runs until October 28, 2026) */}
+          {isRegister && (
+            <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-white rounded-2xl p-4 shadow-md border border-amber-400 relative overflow-hidden" id="first-1000-promo-banner">
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-white text-amber-600 rounded-xl shadow-xs font-black">
+                    <Gift className="w-5 h-5 animate-bounce" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="bg-white/20 text-white px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider">
+                        First 1,000 Signups Special
+                      </span>
+                      <span className="text-[10px] font-bold text-amber-200">
+                        Runs until October 28th, 2026
+                      </span>
+                    </div>
+                    <h4 className="font-black text-sm text-white mt-0.5">
+                      Enjoy 1 Month of 100% Free Platform Use
+                    </h4>
+                  </div>
+                </div>
+                <div className="text-right font-mono bg-white/15 px-3 py-1.5 rounded-xl text-xs">
+                  <span className="font-black text-white block">
+                    Spot #{acquisitionSprintService.getPromoDetails().nextSpotNumber}
+                  </span>
+                  <span className="text-[10px] text-amber-100 block">
+                    of 1,000 claimed ({acquisitionSprintService.getPromoDetails().remainingSpots} spots left)
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-3 pt-2.5 border-t border-white/20 text-xs text-amber-50 space-y-1">
+                {role === "contractor" ? (
+                  <p className="flex items-start gap-1.5">
+                    <CheckCircle className="w-4 h-4 text-emerald-300 shrink-0 mt-0.5" />
+                    <span><strong>Contractor 1-Month Free Pro:</strong> $29.99/mo Pro membership is 100% waived ($0.00 today). Unlimited job bidding, zero lead fees, and verified pro badge valid until <strong>October 28th, 2026</strong>!</span>
+                  </p>
+                ) : (
+                  <p className="flex items-start gap-1.5">
+                    <CheckCircle className="w-4 h-4 text-emerald-300 shrink-0 mt-0.5" />
+                    <span><strong>Homeowner 1-Month Free Use:</strong> 100% waived customer acceptance fees ($0.00 billed instead of $7.99/$20.00) + 1 free priority project boost valid until <strong>October 28th, 2026</strong>!</span>
+                  </p>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Target Role Selector block */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -301,9 +359,9 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
             
             <p className="text-[11px] text-zinc-500 leading-normal">
               {role === "customer" 
-                ? "Post home/business jobs for local contractors to see. Zero fees to register, browse, or post. $5.00/$20.00 project fee paid upon contract agreement."
+                ? "Post home/business jobs for local contractors to see. Zero fees to register, browse, or post. $7.99/$20.00 project acceptance fee only paid upon contract agreement. Give $25, Get $25 neighbor referral promo active!"
                 : role === "contractor"
-                ? "Bid on active projects, contact local homeowners, and secure daily jobs. Membership is $20.00/month for unlimited active leads."
+                ? "Bid on active projects, contact local homeowners, and secure daily jobs. Membership is $29.99/month for unlimited active leads."
                 : "👑 Platform Creator & Owner Executive Access. Unlocks system revenue ledger, escrow overrides, user verification, and broadcast relays."}
             </p>
           </div>
@@ -629,7 +687,7 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
                         <span className="text-[9px] text-amber-150 uppercase font-sans font-bold ml-2 shrink-0">Security CVV</span>
                       </div>
                       <div className="text-[8px] text-amber-200 leading-snug font-sans">
-                        Authorizing card confirms our billing policy. Non-billed until job agreed. Contractors are billed $20 monthly subscription.
+                        Authorizing card confirms our billing policy. Non-billed until job agreed. Contractors are billed $29.99 monthly subscription.
                       </div>
                     </div>
                   )}
@@ -684,21 +742,37 @@ export default function AuthModal({ onClose, onSuccess }: AuthModalProps) {
           )}
 
           {/* Billing Agreement Warning */}
-          <div className="bg-zinc-50 border border-zinc-150 p-3.5 rounded-xl text-center text-[10px] text-zinc-400">
-            {role === "customer" 
-              ? "Customers are charged a platform match fee ONLY when they agree and sign a project contract with a contractor: $5.00 for jobs under $25k, $20.00 for jobs $25,001+."
-              : "Contractors are charged a $20.00/month subscription upon registration. This unlocks bidding, messaging, and project completion features."
-            }
+          <div className="bg-zinc-50 border border-zinc-150 p-3.5 rounded-xl text-center text-[10px] text-zinc-500">
+            {acquisitionSprintService.getPromoDetails().isLive ? (
+              <span className="text-amber-800 font-bold">
+                🎁 <strong>First 1,000 Early Adopter Promotion Active:</strong> Enjoy <strong>1 Month of 100% Free Platform Use</strong> ($0.00 today). Runs until October 28th, 2026. Credit card required only for identity verification and anti-fraud security.
+              </span>
+            ) : role === "customer" ? (
+              "Customers are charged a platform acceptance fee ONLY when they agree and sign a project contract with a contractor: $7.99 for jobs under $25k, $20.00 for jobs $25,001+ (Refer a neighbor to get a $25 credit + waive your fee!)."
+            ) : (
+              "Contractors are charged a $29.99/month subscription upon registration. This unlocks unlimited bidding, messaging, and project completion features."
+            )}
           </div>
 
           {/* Submit Action and Toggle */}
           <div className="flex flex-col gap-4 pt-4 border-t border-zinc-150">
             <button
               type="submit"
-              className="w-full py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition shadow-sm"
+              className="w-full py-2.5 bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white font-black rounded-xl text-xs transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
               id="auth-submit-btn"
             >
-              {isRegister ? `Confirm & Pay / Register as ${role === "customer" ? "Homeowner" : "Contractor"}` : `Sign In as ${role === "customer" ? "Homeowner" : "Contractor"}`}
+              {isRegister ? (
+                acquisitionSprintService.getPromoDetails().isLive ? (
+                  <>
+                    <Gift className="w-4 h-4 text-amber-200" />
+                    <span>Activate 1 Month FREE & Register as {role === "customer" ? "Homeowner" : "Contractor"} ($0.00 Today)</span>
+                  </>
+                ) : (
+                  `Register as ${role === "customer" ? "Homeowner" : "Contractor"}`
+                )
+              ) : (
+                `Sign In as ${role === "customer" ? "Homeowner" : "Contractor"}`
+              )}
             </button>
             
             <button

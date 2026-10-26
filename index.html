@@ -9,6 +9,31 @@
     <meta property="og:title" content="Hot Spot Workshop" />
     <meta property="og:description" content="Comprehensive peer-to-peer home improvement & contractor trade marketplace featuring real-time bidding, 24/7 Rapid Emergency Dispatch, PDF Estimates & Invoicing, Milestone Escrow Vault, Before & After Image Sliders, Material/Permit Estimator, Subcontractor Crew Board, Stripe banking, and PWA mobile installation." />
     
+    <!-- Universal Error Guard for iframe preview -->
+    <script>
+      (function() {
+        function shouldIgnore(msg, file) {
+          var m = String(msg || '');
+          var f = String(file || '');
+          return m.indexOf('WebSocket') !== -1 || m.indexOf('vite') !== -1 || f.indexOf('@vite/client') !== -1 || f.indexOf('vite-hmr') !== -1;
+        }
+        window.addEventListener('error', function(e) {
+          if (e && (shouldIgnore(e.message, e.filename) || shouldIgnore(e.error && e.error.message, ''))) {
+            e.preventDefault && e.preventDefault();
+            e.stopImmediatePropagation && e.stopImmediatePropagation();
+            return true;
+          }
+        }, true);
+        window.addEventListener('unhandledrejection', function(e) {
+          var reason = e ? (e.reason && (e.reason.message || String(e.reason))) : '';
+          if (shouldIgnore(reason, '')) {
+            e.preventDefault && e.preventDefault();
+            e.stopImmediatePropagation && e.stopImmediatePropagation();
+          }
+        }, true);
+      })();
+    </script>
+    
     <!-- Universal Mobile Web App Metadata -->
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />

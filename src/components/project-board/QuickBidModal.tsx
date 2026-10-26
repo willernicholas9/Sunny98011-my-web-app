@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Project, Bid, BaseUser } from "../../types";
 import { DollarSign, Zap, Sparkles, Send, X, Shield, Clock, Check, ArrowRight } from "lucide-react";
+import VoiceInputButton from "../VoiceInputButton";
 
 interface QuickBidModalProps {
   project: Project;
@@ -184,9 +185,23 @@ export default function QuickBidModal({
 
           {/* Custom Message Field */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-bold text-zinc-700">
-              Message to Customer
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-bold text-zinc-700">
+                Message to Customer
+              </label>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-zinc-400 font-medium">Dictate proposal:</span>
+                <VoiceInputButton
+                  onTranscript={(spoken) => {
+                    if (!spoken.trim()) return;
+                    setMessage((prev) => (prev ? `${prev} ${spoken}` : spoken));
+                  }}
+                  size="xs"
+                  continuous={true}
+                  title="Dictate proposal pitch by voice"
+                />
+              </div>
+            </div>
             <textarea
               value={message}
               onChange={(e) => setMessage(e.target.value)}

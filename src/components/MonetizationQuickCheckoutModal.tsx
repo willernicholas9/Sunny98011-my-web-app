@@ -1,9 +1,19 @@
 import React, { useState } from "react";
-import { X, Crown, Zap, Flame, ShieldCheck, Phone, CheckCircle2, Lock, ArrowRight, DollarSign, Sparkles, CreditCard } from "lucide-react";
+import { X, Crown, Zap, Flame, ShieldCheck, Phone, CheckCircle2, Lock, ArrowRight, DollarSign, Sparkles, CreditCard, Award, ShieldAlert, FileText, Truck, Pin } from "lucide-react";
 import { monetizationService } from "../services/monetizationService";
 import { Project } from "../types";
 
-export type MonetizationProductKind = "contractor_pro" | "lead_unlock" | "rush_dispatch" | "project_boost" | "escrow_fee";
+export type MonetizationProductKind =
+  | "contractor_pro"
+  | "lead_unlock"
+  | "rush_dispatch"
+  | "project_boost"
+  | "escrow_fee"
+  | "contractor_verified_badge"
+  | "warranty_bond"
+  | "permit_packet"
+  | "dumpster_tool_booking"
+  | "contractor_spotlight_pin";
 
 interface MonetizationQuickCheckoutModalProps {
   isOpen: boolean;
@@ -105,6 +115,81 @@ export default function MonetizationQuickCheckoutModal({
         "Includes dispute mediation support",
       ],
     },
+    contractor_verified_badge: {
+      title: "Verified License & Background Trust Shield",
+      price: 19.00,
+      period: "one-time",
+      badge: "GOLD TRUST BADGE",
+      badgeColor: "bg-amber-400 text-amber-950",
+      icon: <Award className="w-7 h-7 text-amber-500" />,
+      description: "Official platform audit of state license and clean background record with permanent golden trust badge.",
+      benefits: [
+        "Permanent Golden Trust Badge on all client searches",
+        "Official state trade license & insurance audit",
+        "3.4x higher hiring conversion & bid acceptance rate",
+        "Priority algorithmic placement above unverified profiles",
+      ],
+    },
+    warranty_bond: {
+      title: "$10,000 Guaranteed Homeowner Protection Bond",
+      price: 14.99,
+      period: "one-time",
+      badge: "100% BONDED",
+      badgeColor: "bg-indigo-600 text-white",
+      icon: <ShieldAlert className="w-7 h-7 text-indigo-500" />,
+      description: "Full warranty coverage protecting against contractor abandonment, property damage, and unfinished milestones.",
+      benefits: [
+        "$10,000 platform warranty bond protecting job completion",
+        "Dedicated platform dispute resolution arbitrator assigned in 2 hours",
+        "100% full escrow refund backing if work fails code inspection",
+        "Post-repair photographic signoff audit guarantee",
+      ],
+    },
+    permit_packet: {
+      title: "Official City Permit Submittal & Code Compliance Packet",
+      price: 9.99,
+      period: "one-time",
+      badge: "MUNICIPAL CODE READY",
+      badgeColor: "bg-teal-600 text-white",
+      icon: <FileText className="w-7 h-7 text-teal-500" />,
+      description: "Instant PDF compilation of inspection checklists, scope of work, and contractor certifications ready for city hall.",
+      benefits: [
+        "Code-compliant municipal permit submittal template",
+        "Itemized materials schedule, trade licenses & digital signature block",
+        "Municipality submission guide covering local jurisdiction rules",
+        "Instant high-resolution PDF download with permit review stamp",
+      ],
+    },
+    dumpster_tool_booking: {
+      title: "Commercial Equipment & Roll-Off Dumpster Dispatch",
+      price: 25.00,
+      period: "dispatch pass",
+      badge: "COMMERCIAL EQUIPMENT",
+      badgeColor: "bg-orange-600 text-white",
+      icon: <Truck className="w-7 h-7 text-orange-500" />,
+      description: "Direct partner dispatch for jobsite roll-off dumpsters and heavy equipment with exclusive trade discounts.",
+      benefits: [
+        "Priority next-morning 10/20/30-yard roll-off dumpster delivery",
+        "Exclusive trade fleet rates with United Rentals & Sunbelt (Save up to $150)",
+        "Automated delivery dispatch, street placement permits, and weight tickets",
+        "Dedicated equipment logistics coordinator on call",
+      ],
+    },
+    contractor_spotlight_pin: {
+      title: "48-Hour City Hub Top Spotlight Pin",
+      price: 14.99,
+      period: "48 hours",
+      badge: "CITY SPOTLIGHT",
+      badgeColor: "bg-fuchsia-600 text-white",
+      icon: <Pin className="w-7 h-7 text-fuchsia-500" />,
+      description: "Pin your profile to the top carousel of your local city hub for 48 hours for immediate lead surges.",
+      benefits: [
+        "Fixed at the #1 header spotlight of your city hub directory",
+        "Glow banner highlighting your availability & top rating",
+        "Direct 1-click 'Hire Now' button routing calls directly to you",
+        "Average 5.2x boost in homeowner profile clicks and inquiries",
+      ],
+    },
   }[productKind];
 
   const handleCheckout = async () => {
@@ -116,6 +201,11 @@ export default function MonetizationQuickCheckoutModal({
       rush_dispatch: "project_emergency_rush",
       lead_unlock: "lead_credits_pack_small",
       escrow_fee: "escrow_protection_warranty",
+      contractor_verified_badge: "contractor_verified_badge",
+      warranty_bond: "workmanship_warranty_bond",
+      permit_packet: "permit_compliance_packet",
+      dumpster_tool_booking: "equipment_dumpster_dispatch",
+      contractor_spotlight_pin: "contractor_spotlight_pin",
     };
 
     try {
@@ -168,6 +258,12 @@ export default function MonetizationQuickCheckoutModal({
         monetizationService.setContractorPro(currentUser?.id || "contractor-1", true);
       } else if (productKind === "lead_unlock" && targetProject) {
         monetizationService.unlockLead(targetProject.id, currentUser?.id);
+      } else if (productKind === "contractor_verified_badge" && currentUser?.id) {
+        localStorage.setItem(`hsws_contractor_verified_badge_${currentUser.id}`, "true");
+      } else if (productKind === "warranty_bond" && targetProject) {
+        localStorage.setItem(`hsws_project_warranty_${targetProject.id}`, "true");
+      } else if (productKind === "contractor_spotlight_pin" && currentUser?.id) {
+        localStorage.setItem(`hsws_spotlight_contractor_${currentUser.id}`, new Date(Date.now() + 48 * 3600000).toISOString());
       }
 
       setTimeout(() => {

@@ -4,6 +4,7 @@ import { Upload, X, Info, Hammer, MapPin, DollarSign, Image as ImageIcon, Save, 
 import { CITIES } from "../data/cities";
 import InstantQuoteCalculator from "./InstantQuoteCalculator";
 import PhotoUploadStudio, { DamageAnalysisResult } from "./PhotoUploadStudio";
+import VoiceInputButton from "./VoiceInputButton";
 
 interface ProjectFormProps {
   onAddProject: (projectData: Omit<Project, "id" | "customerId" | "customerFirstName" | "customerLastName" | "customerPhone" | "customerAddress" | "customerEmail" | "createdAt" | "status" | "agreedByCustomer" | "agreedByContractor" | "serviceFeeCharge">) => void;
@@ -28,11 +29,15 @@ const IMAGE_PRESETS = [
   { name: "Windows / Glazing", url: "https://images.unsplash.com/photo-1513694203232-719a280e022f?w=600&auto=format&fit=crop&q=80" },
 ];
 
+const MIN_TITLE_LENGTH = 5;
+
 export default function ProjectForm({ onAddProject, onClose, currentUser, initialData }: ProjectFormProps) {
   const [showCalculatorWidget, setShowCalculatorWidget] = useState(false);
   const [title, setTitle] = useState(initialData?.title || "");
+  const [titleTouched, setTitleTouched] = useState(false);
   const [description, setDescription] = useState(initialData?.description || "");
   const [budget, setBudget] = useState(initialData?.budget ? String(initialData.budget) : "");
+  const [budgetTouched, setBudgetTouched] = useState(false);
   const [type, setType] = useState<"home" | "business">("home");
   const [address, setAddress] = useState("");
   const [zipCode, setZipCode] = useState(initialData?.zipCode || "");
@@ -43,6 +48,25 @@ export default function ProjectForm({ onAddProject, onClose, currentUser, initia
   const [isEmergency, setIsEmergency] = useState(false);
   const [emergencyCategory, setEmergencyCategory] = useState<"Plumbing Leak" | "Power Outage" | "Roof/Storm Damage" | "HVAC/Heating" | "Locksmith" | "Other">("Plumbing Leak");
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Real-time validation calculations
+  const trimmedTitle = title.trim();
+  const titleError = !trimmedTitle
+    ? "Project title is required."
+    : trimmedTitle.length < MIN_TITLE_LENGTH
+    ? `Title must be at least ${MIN_TITLE_LENGTH} characters long (currently ${trimmedTitle.length}).`
+    : null;
+
+  const parsedBudget = parseFloat(budget);
+  const budgetError = !budget.trim()
+    ? "Target budget is required."
+    : isNaN(parsedBudget)
+    ? "Budget must be a valid number."
+    : parsedBudget <= 0
+    ? "Budget must be a positive number greater than $0."
+    : null;
+
+  const isFormValid = !titleError && !budgetError;
 
   const handleSaveZip = () => {
     if (!zipCode.trim()) return;
@@ -134,14 +158,17 @@ export default function ProjectForm({ onAddProject, onClose, currentUser, initia
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    setTitleTouched(true);
+    setBudgetTouched(true);
     setFormError(null);
-    if (!title.trim()) {
-      setFormError("Please enter a project title.");
+
+    if (titleError) {
+      setFormError(titleError);
       return;
     }
-    const budgetNum = parseFloat(budget);
-    if (isNaN(budgetNum) || budgetNum <= 0) {
-      setFormError("Please specify a valid budget greater than zero.");
+
+    if (budgetError) {
+      setFormError(budgetError);
       return;
     }
 
@@ -149,15 +176,22 @@ export default function ProjectForm({ onAddProject, onClose, currentUser, initia
       ? uploadedImages 
       : ["https://images.unsplash.com/photo-1581094288338-2314dddb7eed?w=600&auto=format&fit=crop&q=80"];
 
+    const matchedCity = CITIES.find(c => c.name.toLowerCase() === city.toLowerCase() || c.zipCode === zipCode);
+    const coordinates = matchedCity ? {
+      lat: Number((matchedCity.lat + (Math.random() - 0.5) * 0.012).toFixed(4)),
+      lng: Number((matchedCity.lng + (Math.random() - 0.5) * 0.012).toFixed(4)),
+    } : undefined;
+
     onAddProject({
-      title,
+      title: trimmedTitle,
       description,
-      budget: budgetNum,
+      budget: parsedBudget,
       type,
       address,
       city,
       state,
       zipCode,
+      coordinates,
       images: finalImages,
       photoTags: Object.keys(photoTags).length > 0 ? photoTags : undefined,
       damageScanAnalysis,
@@ -209,7 +243,11 @@ export default function ProjectForm({ onAddProject, onClose, currentUser, initia
             <InstantQuoteCalculator
               onApplyEstimateToForm={(trade, estimatedBudget, autoTitle, autoDesc) => {
                 setBudget(estimatedBudget.toString());
-                if (!title) setTitle(autoTitle);
+                setBudgetTouched(true);
+                if (!title) {
+                  setTitle(autoTitle);
+                  setTitleTouched(true);
+                }
                 if (!description) setDescription(autoDesc);
                 setShowCalculatorWidget(false);
               }}
@@ -220,31 +258,120 @@ export default function ProjectForm({ onAddProject, onClose, currentUser, initia
           {/* Project Header fields */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="md:col-span-2">
-              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Project Title</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="form-project-title" className="block text-xs font-bold text-zinc-500 uppercase tracking-wider">
+                  Project Title <span className="text-rose-500">*</span>
+                </label>
+                <div className="flex items-center gap-2">
+                  <VoiceInputButton
+                    onTranscript={(spoken) => {
+                      if (!spoken.trim()) return;
+                      setTitle((prev) => (prev ? `${prev} ${spoken}` : spoken));
+                      setTitleTouched(true);
+                      setFormError(null);
+                    }}
+                    size="xs"
+                    title="Speak project title"
+                  />
+                  <span
+                    className={`text-[11px] font-mono transition-colors ${
+                      trimmedTitle.length >= MIN_TITLE_LENGTH
+                        ? "text-emerald-600 font-bold"
+                        : titleTouched
+                        ? "text-rose-500 font-semibold"
+                        : "text-zinc-400"
+                    }`}
+                  >
+                    {trimmedTitle.length}/{MIN_TITLE_LENGTH} min chars
+                  </span>
+                </div>
+              </div>
               <input
                 type="text"
                 placeholder="e.g. Garden cleanout & weed barrier installation"
                 value={title}
-                onChange={(e) => setTitle(e.target.value)}
+                onChange={(e) => {
+                  setTitle(e.target.value);
+                  if (!titleTouched) setTitleTouched(true);
+                  if (formError) setFormError(null);
+                }}
+                onBlur={() => setTitleTouched(true)}
+                aria-invalid={titleTouched && !!titleError}
+                aria-describedby={titleTouched && titleError ? "form-title-error" : undefined}
                 required
-                className="w-full bg-zinc-50/50 border border-zinc-300 rounded-xl px-3 py-2.5 text-sm focus:ring-1 focus:ring-amber-500 focus:bg-white focus:outline-hidden transition"
+                className={`w-full rounded-xl px-3 py-2.5 text-sm transition focus:outline-hidden ${
+                  titleTouched && titleError
+                    ? "bg-rose-50/50 border border-rose-400 text-rose-950 focus:ring-1 focus:ring-rose-500"
+                    : titleTouched && !titleError
+                    ? "bg-emerald-50/30 border border-emerald-400 text-zinc-900 focus:ring-1 focus:ring-emerald-500"
+                    : "bg-zinc-50/50 border border-zinc-300 focus:ring-1 focus:ring-amber-500 focus:bg-white"
+                }`}
                 id="form-project-title"
               />
+              {titleTouched && titleError && (
+                <p id="form-title-error" className="mt-1 text-xs text-rose-600 font-semibold flex items-center gap-1 animate-fade-in" role="alert">
+                  <span className="shrink-0">⚠️</span>
+                  <span>{titleError}</span>
+                </p>
+              )}
+              {titleTouched && !titleError && (
+                <p className="mt-1 text-xs text-emerald-600 font-medium flex items-center gap-1 animate-fade-in">
+                  <Check className="w-3.5 h-3.5 shrink-0" />
+                  <span>Title meets character length requirement.</span>
+                </p>
+              )}
             </div>
+
             <div>
-              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Target Budget ($)</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label htmlFor="form-project-budget" className="block text-xs font-bold text-zinc-500 uppercase tracking-wider">
+                  Target Budget ($) <span className="text-rose-500">*</span>
+                </label>
+                {budgetTouched && !budgetError && (
+                  <span className="text-[11px] font-mono text-emerald-600 font-bold">
+                    ✓ Valid
+                  </span>
+                )}
+              </div>
               <div className="relative">
-                <span className="absolute left-3.5 top-2.5 text-zinc-500 font-semibold text-sm">$</span>
+                <span className={`absolute left-3.5 top-2.5 font-semibold text-sm ${budgetTouched && budgetError ? "text-rose-500" : "text-zinc-500"}`}>$</span>
                 <input
                   type="number"
                   placeholder="e.g. 450"
                   value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
+                  min="0.01"
+                  step="any"
+                  onChange={(e) => {
+                    setBudget(e.target.value);
+                    if (!budgetTouched) setBudgetTouched(true);
+                    if (formError) setFormError(null);
+                  }}
+                  onBlur={() => setBudgetTouched(true)}
+                  aria-invalid={budgetTouched && !!budgetError}
+                  aria-describedby={budgetTouched && budgetError ? "form-budget-error" : undefined}
                   required
-                  className="w-full bg-zinc-50/50 border border-zinc-300 rounded-xl pl-7 pr-3 py-2.5 text-sm focus:ring-1 focus:ring-amber-500 focus:bg-white focus:outline-hidden transition font-semibold"
+                  className={`w-full rounded-xl pl-7 pr-3 py-2.5 text-sm font-semibold transition focus:outline-hidden ${
+                    budgetTouched && budgetError
+                      ? "bg-rose-50/50 border border-rose-400 text-rose-950 focus:ring-1 focus:ring-rose-500"
+                      : budgetTouched && !budgetError
+                      ? "bg-emerald-50/30 border border-emerald-400 text-zinc-900 focus:ring-1 focus:ring-emerald-500"
+                      : "bg-zinc-50/50 border border-zinc-300 focus:ring-1 focus:ring-amber-500 focus:bg-white"
+                  }`}
                   id="form-project-budget"
                 />
               </div>
+              {budgetTouched && budgetError && (
+                <p id="form-budget-error" className="mt-1 text-xs text-rose-600 font-semibold flex items-center gap-1 animate-fade-in" role="alert">
+                  <span className="shrink-0">⚠️</span>
+                  <span>{budgetError}</span>
+                </p>
+              )}
+              {budgetTouched && !budgetError && parsedBudget > 0 && (
+                <p className="mt-1 text-xs text-emerald-600 font-medium flex items-center gap-1 animate-fade-in">
+                  <Check className="w-3.5 h-3.5 shrink-0" />
+                  <span>${parsedBudget.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} valid budget.</span>
+                </p>
+              )}
             </div>
           </div>
 
@@ -436,7 +563,21 @@ export default function ProjectForm({ onAddProject, onClose, currentUser, initia
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider mb-1.5">Detailed Project Specification & Tasks</label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-bold text-zinc-500 uppercase tracking-wider">Detailed Project Specification & Tasks</label>
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] text-zinc-400 font-medium">Dictate tasks:</span>
+                <VoiceInputButton
+                  onTranscript={(spoken) => {
+                    if (!spoken.trim()) return;
+                    setDescription((prev) => (prev ? `${prev} ${spoken}` : spoken));
+                  }}
+                  size="xs"
+                  continuous={true}
+                  title="Dictate project specification by voice"
+                />
+              </div>
+            </div>
             <textarea
               placeholder="Describe exactly what needs to be done. E.g. 'Looking for assistance with clearing leaves from gutters, bagging lawn debris, spreading mulch. Bring your own rake and heavy-duty bags...'"
               value={description}
@@ -475,12 +616,14 @@ export default function ProjectForm({ onAddProject, onClose, currentUser, initia
             <div className="space-y-1">
               <span className="font-bold">Hot Spot Work Shop Customer Agreement:</span>
               <p className="leading-relaxed">
-                Posting is free. When both you and a contractor accept a project, a service charge applies based on project price:
+                Posting is 100% free. When both you and a contractor mutually accept a project contract, a low acceptance charge applies based on project price:
               </p>
               <ul className="list-disc list-inside mt-0.5 font-medium space-y-0.5">
-                <li>Under $25,000: <strong className="font-extrabold">$5.00 service fee</strong>.</li>
+                <li>Under $25,000: <strong className="font-extrabold">$7.99 customer acceptance fee</strong>.</li>
                 <li>$25,001 and above: <strong className="font-extrabold">$20.00 service fee</strong>.</li>
                 <li><em>Absolutely no fee is billed until the job is accepted and agreed upon by both you and the contractor.</em></li>
+                <li className="text-amber-800 font-extrabold">🎉 FIRST 1,000 SIGNUPS PROMOTION: Enjoy 1 full month of 100% free use ($0 acceptance fees) until October 28th, 2026!</li>
+                <li className="text-amber-700 font-bold">🎁 Give $25, Get $25: Invite a neighbor to unlock a $25.00 project credit + waive your acceptance fee!</li>
               </ul>
             </div>
           </div>
@@ -492,21 +635,43 @@ export default function ProjectForm({ onAddProject, onClose, currentUser, initia
             </div>
           )}
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-zinc-150">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-white hover:bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-semibold text-zinc-650 transition"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-5 py-2.5 bg-amber-600 hover:bg-amber-700 text-white font-bold rounded-xl text-xs transition shadow-sm"
-              id="form-submit-btn"
-            >
-              Request Project Launch
-            </button>
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-zinc-150">
+            <div className="text-[11px] text-zinc-500 font-medium w-full sm:w-auto text-left">
+              {(titleTouched || budgetTouched) && !isFormValid ? (
+                <span className="text-rose-600 font-semibold flex items-center gap-1 animate-fade-in">
+                  <span>⚠️</span>
+                  <span>Please resolve title length (5+ chars) and positive budget before posting.</span>
+                </span>
+              ) : isFormValid && titleTouched && budgetTouched ? (
+                <span className="text-emerald-600 font-semibold flex items-center gap-1 animate-fade-in">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>All title & budget requirements satisfied!</span>
+                </span>
+              ) : (
+                <span className="text-zinc-500">* Required fields marked with red asterisks</span>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 w-full sm:w-auto">
+              <button
+                type="button"
+                onClick={onClose}
+                className="px-4 py-2 bg-white hover:bg-zinc-50 border border-zinc-200 rounded-xl text-xs font-semibold text-zinc-650 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className={`px-5 py-2.5 font-bold rounded-xl text-xs transition shadow-sm cursor-pointer flex items-center gap-1.5 ${
+                  (titleTouched || budgetTouched) && !isFormValid
+                    ? "bg-zinc-200 text-zinc-600 hover:bg-zinc-300"
+                    : "bg-amber-600 hover:bg-amber-700 text-white active:scale-95"
+                }`}
+                id="form-submit-btn"
+              >
+                Request Project Launch
+              </button>
+            </div>
           </div>
         </form>
       </div>

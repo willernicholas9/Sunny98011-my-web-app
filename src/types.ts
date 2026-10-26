@@ -19,6 +19,15 @@ export interface BaseUser {
   isPlatformOwner?: boolean;
   createdAt: string;
   pushNotificationsEnabled?: boolean;
+  first1000Promo?: {
+    isEligible: boolean;
+    spotNumber: number;
+    promoName: string; // "First 1,000 Signups - 1 Month Free Platform Use"
+    freeMonthExpiresAt: string; // "2026-10-28T23:59:59.000Z"
+    claimedAt: string;
+    membershipWaived: boolean;
+    homeownerFeesWaived: boolean;
+  };
 }
 
 export interface CustomerUser extends BaseUser {
@@ -124,7 +133,7 @@ export interface Project {
   agreedByCustomer: boolean;
   agreedByContractor: boolean;
   createdAt: string;
-  serviceFeeCharge: number; // calculated service fee ($5 or $20)
+  serviceFeeCharge: number; // calculated service fee ($7.99 or $20)
   targetCompletionDate?: string; // e.g. "2026-08-10" or calculated
   estimatedDaysToComplete?: number; // e.g. 3
   complexityLevel?: "Low" | "Medium" | "High" | "Major Renovation";
@@ -138,6 +147,27 @@ export interface Project {
   beforeAfterPair?: BeforeAfterPair;
   emergencyPhoneContact?: string;
   emergencyEtaMinutes?: number;
+  coordinates?: { lat: number; lng: number };
+}
+
+export interface HomepageAd {
+  id: string;
+  companyName: string;
+  tagline: string;
+  description: string;
+  badge: string;
+  imageUrl?: string;
+  accentColor?: string;
+  ctaText: string;
+  targetUrl: string;
+  category?: string;
+  placement: "top_banner" | "mid_board" | "card_inline";
+  pricePaid: number;
+  durationDays: number;
+  createdAt: string;
+  expiresAt: string;
+  isActive: boolean;
+  clicksCount: number;
 }
 
 export interface ProjectMilestone {
@@ -218,8 +248,11 @@ export interface SubcontractorCrewPost {
 export interface NegotiationStep {
   id: string;
   senderRole: "customer" | "contractor";
+  senderName?: string;
   amount: number;
   message: string;
+  completionDays?: number;
+  materialsIncluded?: boolean;
   createdAt: string;
 }
 
@@ -229,11 +262,18 @@ export interface Bid {
   contractorId: string;
   contractorName: string;
   contractorCompany?: string;
+  contractorAvatar?: string;
   amount: number;
   message: string;
+  completionDays?: number;
+  materialsIncluded?: boolean;
   status: "pending" | "counter_by_customer" | "counter_by_contractor" | "accepted" | "declined";
   createdAt: string;
   history?: NegotiationStep[];
+  paymentInitiated?: boolean;
+  paymentMethod?: string;
+  paymentReference?: string;
+  agreedAt?: string;
 }
 
 export interface Coordinate {
@@ -303,7 +343,17 @@ export type MonetizationProductType =
   | "ai_ad_campaign_pro" // $149.00 (Multi-channel Google + Meta + Nextdoor AI Ads for 30 days)
   | "ai_ad_campaign_enterprise" // $299.00 (Complete Metro dominance tier)
   | "sponsored_category_banner" // $39.00 / week (Featured top category placement)
-  | "homeowner_urgent_ad_dispatch"; // $9.99 (Instant AI Ad & SMS broadcast to 50+ local trade pros)
+  | "homeowner_urgent_ad_dispatch" // $9.99 (Instant AI Ad & SMS broadcast to 50+ local trade pros)
+  | "homeowner_referral_credit" // $25.00 homeowner/neighbor referral credit
+  | "contractor_verified_badge" // $19.00 (Official Background Check & Verified Pro License Badge)
+  | "workmanship_warranty_bond" // $14.99 ($10,000 Homeowner Peace-of-Mind Protection Bond)
+  | "permit_compliance_packet" // $9.99 (Official City Permit Submittal & Code Compliance Packet)
+  | "equipment_dumpster_dispatch" // $25.00 (Commercial Dumpster & Heavy Equipment Booking Dispatch)
+  | "contractor_spotlight_pin" // $14.99 (48-Hour City Hub Top Contractor Spotlight Pin)
+  | "instant_escrow_payout_express" // $9.99 (Same-Day Instant Debit Card / RTP Escrow Payout for contractors)
+  | "lien_waiver_warranty_package" // $14.99 (Official Subcontractor Lien Waiver & 1-Year Workmanship Warranty Vault)
+  | "ai_3d_design_material_visualizer" // $19.99 (AI 3D Renovation Design Render & Spec Sheet Packet)
+  | "subcontractor_crew_vip_blast"; // $19.00 (Urgent 45-Mile Subcontractor Crew SMS & Push Broadcast)
 
 export interface AiManagedAdCampaign {
   id: string;

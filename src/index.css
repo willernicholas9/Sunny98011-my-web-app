@@ -6,14 +6,14 @@
   --font-display: "Space Grotesk", sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
   
-  --color-amber-50: #f4f7fc; /* USA flag-inspired soft light blue-gray background */
-  --color-amber-100: #dbeafe; /* USA freedom light blue highlight */
-  --color-amber-200: #bfdbfe; /* USA soft blue-200 accent */
-  --color-amber-500: #1d4ed8; /* USA freedom Royal Blue accent */
-  --color-amber-600: #e11d48; /* USA Flag vivid Crimson Red */
-  --color-amber-700: #0f172a; /* USA deepest Navy Blue shadow */
-  --color-amber-900: #0a192f; /* USA high-contrast dark Navy text */
-  --color-amber-950: #050d1a; /* USA deepest midnight text background */
+  --color-amber-50: #fffbeb; /* Joyful warm sunshine cream */
+  --color-amber-100: #fef3c7; /* Bright warm buttercup highlight */
+  --color-amber-200: #fde68a; /* Cheerful golden sun accent */
+  --color-amber-500: #f59e0b; /* Vibrant honey amber energy */
+  --color-amber-600: #d97706; /* Rich golden craft amber */
+  --color-amber-700: #b45309; /* Deep warm amber shadow */
+  --color-amber-900: #78350f; /* High-contrast warm amber text */
+  --color-amber-950: #451a03; /* Deepest warm espresso amber */
 }
 
 @layer base {

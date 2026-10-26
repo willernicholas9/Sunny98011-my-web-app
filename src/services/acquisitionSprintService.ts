@@ -42,7 +42,7 @@ export interface AcquisitionSprintState {
 }
 
 const STORAGE_KEY = "hsws_acquisition_sprint_state";
-const DEADLINE = "2026-09-30T23:59:59";
+const DEADLINE = "2026-10-28T23:59:59";
 
 // Initial seed batch of realistic acquired users for September 2026 sprint
 const INITIAL_SIGNUPS: AcquiredUser[] = [
@@ -370,6 +370,102 @@ class AcquisitionSprintService {
     this.persist();
 
     return inviteUser;
+  }
+
+  /**
+   * Checks whether the First 1,000 Signups 1-Month Free Promo is currently live and unexhausted
+   */
+  public isFirst1000PromoActive(): boolean {
+    const isUnderCap = this.state.totalAcquired < this.state.targetUsers;
+    const isBeforeDeadline = new Date().getTime() <= new Date(this.state.deadlineDate).getTime();
+    return isUnderCap && isBeforeDeadline;
+  }
+
+  public getPromoDetails() {
+    const isUnderCap = this.state.totalAcquired < this.state.targetUsers;
+    const now = new Date();
+    const deadline = new Date(this.state.deadlineDate);
+    const isBeforeDeadline = now.getTime() <= deadline.getTime();
+    const remainingSpots = Math.max(0, this.state.targetUsers - this.state.totalAcquired);
+
+    return {
+      promoName: "First 1,000 Signups - 1 Month 100% Free Platform Use",
+      targetUsers: this.state.targetUsers,
+      totalAcquired: this.state.totalAcquired,
+      remainingSpots,
+      nextSpotNumber: this.state.totalAcquired + 1,
+      deadlineDate: this.state.deadlineDate,
+      deadlineFormatted: "October 28th, 2026",
+      isLive: isUnderCap && isBeforeDeadline,
+      isUnderCap,
+      isBeforeDeadline,
+      contractorPerk: "1 Month Free Pro Membership ($29.99/mo waived), unlimited job leads, verified pro badge through Oct 28, 2026",
+      homeownerPerk: "1 Month Free Platform Use, 100% waived customer acceptance fees ($0 instead of $7.99/$20.00), free priority boost through Oct 28, 2026"
+    };
+  }
+
+  /**
+   * Enrolls a freshly registered user (Contractor or Homeowner) into the First 1,000 Promo
+   */
+  public enrollUserInFirst1000Promo(user: any): any {
+    const promo = this.getPromoDetails();
+
+    if (promo.isLive) {
+      const spotNumber = this.state.totalAcquired + 1;
+      const enrolledUser = {
+        ...user,
+        first1000Promo: {
+          isEligible: true,
+          spotNumber,
+          promoName: "First 1,000 Signups - 1 Month Free Platform Use",
+          freeMonthExpiresAt: this.state.deadlineDate, // October 28, 2026
+          claimedAt: new Date().toISOString(),
+          membershipWaived: true,
+          homeownerFeesWaived: true,
+        },
+        // If contractor, immediately grant Pro status for free
+        ...(user.role === "contractor" && {
+          subscriptionActive: true,
+          subscriptionTier: "pro",
+          verifiedProBadge: true,
+          subscriptionExpiresAt: this.state.deadlineDate,
+        }),
+        // If homeowner, waive contract acceptance fees
+        ...(user.role === "customer" && {
+          firstJobFeeWaived: true,
+          homeownerFeesWaived: true,
+        }),
+      };
+
+      // Record in sprint tracker
+      const isContractor = user.role === "contractor";
+      if (isContractor) {
+        this.state.contractorsAcquired += 1;
+      } else {
+        this.state.homeownersAcquired += 1;
+      }
+      this.state.totalAcquired = this.state.homeownersAcquired + this.state.contractorsAcquired;
+
+      const acqEntry: AcquiredUser = {
+        id: `acq-${Date.now()}`,
+        name: user.fullName || user.username,
+        role: isContractor ? "contractor" : "homeowner",
+        trade: user.trades?.[0],
+        city: user.city || "Austin",
+        state: user.state || "TX",
+        zipCode: user.zipCode || "78701",
+        channel: "viral_referral",
+        timestamp: new Date().toISOString(),
+        projectOrBidCount: 1,
+      };
+
+      this.state.recentSignups = [acqEntry, ...this.state.recentSignups].slice(0, 30);
+      this.persist();
+
+      return enrolledUser;
+    }
+
+    return user;
   }
 
   /**

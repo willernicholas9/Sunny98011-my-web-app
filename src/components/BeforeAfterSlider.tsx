@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import { MoveHorizontal, Sparkles } from "lucide-react";
 
 interface BeforeAfterSliderProps {
@@ -23,15 +23,32 @@ export default function BeforeAfterSlider({
   const [sliderPosition, setSliderPosition] = useState(50);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef<number | null>(null);
 
-  const handleMove = useCallback((clientX: number) => {
+  const updatePosition = useCallback((clientX: number) => {
     if (!containerRef.current) return;
     const rect = containerRef.current.getBoundingClientRect();
     const x = clientX - rect.left;
     let percentage = (x / rect.width) * 100;
-    if (percentage < 2) percentage = 2;
-    if (percentage > 98) percentage = 98;
-    setSliderPosition(percentage);
+    if (percentage < 1) percentage = 1;
+    if (percentage > 99) percentage = 99;
+    setSliderPosition(Math.round(percentage * 10) / 10);
+  }, []);
+
+  const handleMove = useCallback((clientX: number) => {
+    if (rafRef.current) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = null;
+      updatePosition(clientX);
+    });
+  }, [updatePosition]);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
+      }
+    };
   }, []);
 
   const handleTouchMove = useCallback((e: React.TouchEvent) => {
@@ -64,14 +81,14 @@ export default function BeforeAfterSlider({
         className={`relative w-full ${heightClass} rounded-2xl overflow-hidden select-none cursor-ew-resize bg-zinc-900 border border-zinc-200 shadow-md group`}
         onMouseDown={(e) => {
           setIsDragging(true);
-          handleMove(e.clientX);
+          updatePosition(e.clientX);
         }}
         onMouseUp={() => setIsDragging(false)}
         onMouseLeave={() => setIsDragging(false)}
         onMouseMove={handleMouseMove}
         onTouchMove={handleTouchMove}
         onTouchStart={(e) => {
-          if (e.touches.length > 0) handleMove(e.touches[0].clientX);
+          if (e.touches.length > 0) updatePosition(e.touches[0].clientX);
         }}
         id="before-after-slider-container"
       >
@@ -79,26 +96,24 @@ export default function BeforeAfterSlider({
         <img
           src={afterImage}
           alt={afterLabel}
-          className="absolute inset-0 w-full h-full object-cover"
+          className="absolute inset-0 w-full h-full object-cover pointer-events-none"
           loading="lazy"
         />
 
-        {/* Clipped Before Image (Foreground overlay) */}
+        {/* Clipped Before Image - Using GPU-accelerated clipPath to eliminate all layout thrashing */}
         <div
-          className="absolute inset-0 overflow-hidden"
-          style={{ width: `${sliderPosition}%` }}
+          className="absolute inset-0 pointer-events-none transition-none"
+          style={{
+            clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`,
+            WebkitClipPath: `inset(0 ${100 - sliderPosition}% 0 0)`,
+          }}
         >
           <img
             src={beforeImage}
             alt={beforeLabel}
-            className="absolute top-0 left-0 max-w-none h-full object-cover"
-            style={{
-              width: containerRef.current ? `${containerRef.current.clientWidth}px` : "100%",
-            }}
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
             loading="lazy"
           />
-          {/* Subtle gradient shadow along the divider */}
-          <div className="absolute inset-y-0 right-0 w-2 bg-gradient-to-r from-transparent to-black/30 pointer-events-none" />
         </div>
 
         {/* Labels */}
@@ -113,7 +128,7 @@ export default function BeforeAfterSlider({
 
         {/* Divider Handle */}
         <div
-          className="absolute inset-y-0 -ml-0.5 w-1 bg-white shadow-2xl pointer-events-none flex items-center justify-center"
+          className="absolute inset-y-0 -ml-0.5 w-1 bg-white shadow-2xl pointer-events-none flex items-center justify-center transition-none"
           style={{ left: `${sliderPosition}%` }}
         >
           <div className="w-8 h-8 -ml-3.5 rounded-full bg-white text-zinc-900 shadow-xl border-2 border-amber-500 flex items-center justify-center transform transition-transform group-hover:scale-110">

@@ -1,19 +1,24 @@
 import React, { useState, useEffect } from "react";
 import { realtimeSync, SyncStatus, SyncActivityEvent } from "../services/realtimeSync";
-import { Wifi, WifiOff, Smartphone, Globe, RefreshCw, Send, CheckCircle2, Sparkles, Activity, Layers, QrCode, ExternalLink, X, ShieldCheck, ArrowRight, Zap } from "lucide-react";
+import { persistenceCheck } from "../services/persistenceCheck";
+import { PersistenceState } from "../types/persistenceTypes";
+import { Wifi, WifiOff, Smartphone, Globe, RefreshCw, Send, CheckCircle2, Sparkles, Activity, Layers, QrCode, ExternalLink, X, ShieldCheck, ArrowRight, Zap, CloudUpload } from "lucide-react";
 
 interface RealtimeSyncBarProps {
   currentCityName?: string;
   onPostProjectClick?: () => void;
   onPlaceBidSimulation?: () => void;
+  onOpenSyncStatusModal?: () => void;
 }
 
 export default function RealtimeSyncBar({
   currentCityName = "Austin, TX",
   onPostProjectClick,
   onPlaceBidSimulation,
+  onOpenSyncStatusModal,
 }: RealtimeSyncBarProps) {
   const [status, setStatus] = useState<SyncStatus>(realtimeSync.getStatus());
+  const [persistenceState, setPersistenceState] = useState<PersistenceState>(persistenceCheck.getState());
   const [showSimulatorModal, setShowSimulatorModal] = useState(false);
   const [showQrModal, setShowQrModal] = useState(false);
   const [latestActivity, setLatestActivity] = useState<SyncActivityEvent | null>(null);
@@ -25,6 +30,10 @@ export default function RealtimeSyncBar({
     // Subscribe to status changes
     const unsubStatus = realtimeSync.onStatus((newStatus) => {
       setStatus(newStatus);
+    });
+
+    const unsubPersistence = persistenceCheck.subscribe((newState) => {
+      setPersistenceState(newState);
     });
 
     // Subscribe to sync events for live activity bar
@@ -49,6 +58,7 @@ export default function RealtimeSyncBar({
 
     return () => {
       unsubStatus();
+      unsubPersistence();
       unsubEvents();
     };
   }, [currentCityName]);
@@ -98,6 +108,29 @@ export default function RealtimeSyncBar({
 
           {/* Right: Quick Action Controls */}
           <div className="flex items-center gap-1.5 sm:gap-2 ml-auto">
+            {/* Sync Status & Offline Queue History Button */}
+            {onOpenSyncStatusModal && (
+              <button
+                type="button"
+                onClick={onOpenSyncStatusModal}
+                className={`flex items-center gap-1 font-bold px-2.5 py-1 rounded-lg text-[11px] transition cursor-pointer active:scale-95 border ${
+                  persistenceState.pendingCount > 0
+                    ? "bg-amber-500/25 border-amber-400 text-amber-200 hover:bg-amber-500/35 animate-pulse"
+                    : "bg-emerald-500/15 border-emerald-400/40 text-emerald-300 hover:bg-emerald-500/25 hover:text-emerald-200"
+                }`}
+                id="realtime-sync-status-history-btn"
+                title="View local actions waiting to be uploaded to cloud once connectivity is restored"
+              >
+                <CloudUpload className="w-3.5 h-3.5 text-amber-400" />
+                <span>Sync Status</span>
+                {persistenceState.pendingCount > 0 && (
+                  <span className="bg-amber-400 text-zinc-950 font-black px-1.5 py-0.2 rounded-full text-[10px] ml-0.5">
+                    {persistenceState.pendingCount}
+                  </span>
+                )}
+              </button>
+            )}
+
             {/* Test Ping Button */}
             <button
               type="button"

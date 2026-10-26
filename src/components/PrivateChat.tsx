@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { PrivateChatMessage, ContractorUser, CustomerUser } from "../types";
 import { MessageSquare, Send, X, HardHat, User, Sparkles, MessageCircle, Info, Search, ShieldCheck } from "lucide-react";
+import VoiceInputButton from "./VoiceInputButton";
 
 interface PrivateChatProps {
   currentUser: any;
@@ -333,18 +334,30 @@ export default function PrivateChat({
                 onSubmit={handleSend}
                 className="bg-white border-t border-zinc-200 p-3 flex gap-2 shrink-0 items-center"
               >
-                <input
-                  type="text"
-                  placeholder="Type a secure message..."
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                  className="flex-1 bg-zinc-50 border border-zinc-200 hover:border-zinc-300 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-amber-550 focus:outline-hidden text-zinc-900 focus:bg-white"
-                  maxLength={500}
-                />
+                <div className="flex-1 relative flex items-center">
+                  <input
+                    type="text"
+                    placeholder="Type a secure message..."
+                    value={inputText}
+                    onChange={(e) => setInputText(e.target.value)}
+                    className="w-full bg-zinc-50 border border-zinc-200 hover:border-zinc-300 rounded-xl pl-3 pr-9 py-2 text-xs focus:ring-1 focus:ring-amber-550 focus:outline-hidden text-zinc-900 focus:bg-white"
+                    maxLength={500}
+                  />
+                  <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
+                    <VoiceInputButton
+                      onTranscript={(spoken) => {
+                        if (!spoken.trim()) return;
+                        setInputText((prev) => (prev ? `${prev} ${spoken}` : spoken));
+                      }}
+                      size="xs"
+                      title="Speak message (Voice-to-Text)"
+                    />
+                  </div>
+                </div>
                 <button
                   type="submit"
                   disabled={!inputText.trim()}
-                  className="w-9 h-9 flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-zinc-900 text-white rounded-xl transition duration-150 shadow-xs"
+                  className="w-9 h-9 flex items-center justify-center bg-zinc-900 hover:bg-zinc-800 disabled:opacity-30 disabled:hover:bg-zinc-900 text-white rounded-xl transition duration-150 shadow-xs cursor-pointer"
                 >
                   <Send className="w-3.5 h-3.5 fill-current" />
                 </button>
@@ -439,15 +452,25 @@ export default function PrivateChat({
                 ) : (
                   /* New Chat Finder search space */
                   <div className="p-3.5 space-y-3">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-zinc-400" />
+                    <div className="relative flex items-center">
+                      <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-zinc-400 pointer-events-none" />
                       <input
                         type="text"
                         placeholder={`Search ${currentUser.role === 'contractor' ? 'customers' : 'contractors'}...`}
                         value={searchTerm}
                         onChange={(e) => setSearchTerm(e.target.value)}
-                        className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-8 pr-3 py-2 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-hidden focus:bg-white focus:ring-1 focus:ring-amber-550"
+                        className="w-full bg-zinc-50 border border-zinc-200 rounded-xl pl-8 pr-8 py-2 text-xs text-zinc-800 placeholder-zinc-400 focus:outline-hidden focus:bg-white focus:ring-1 focus:ring-amber-550"
                       />
+                      <div className="absolute right-1.5 top-1/2 -translate-y-1/2">
+                        <VoiceInputButton
+                          onTranscript={(spoken) => {
+                            if (!spoken.trim()) return;
+                            setSearchTerm((prev) => (prev ? `${prev} ${spoken}` : spoken));
+                          }}
+                          size="xs"
+                          title="Search candidates by voice"
+                        />
+                      </div>
                     </div>
 
                     <div className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest mt-2">

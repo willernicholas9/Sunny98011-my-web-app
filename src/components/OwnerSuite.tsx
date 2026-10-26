@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Project, Bid } from "../types";
 import OutreachCampaignsHub from "./OutreachCampaignsHub";
 import AutonomousAdInstallerAgent from "./AutonomousAdInstallerAgent";
+import OwnerPaidAdsAiAgent from "./owner/OwnerPaidAdsAiAgent";
 import ProjectAnalytics from "./owner/ProjectAnalytics";
 import LeadPriorityEngine from "./owner/LeadPriorityEngine";
 import { monetizationService } from "../services/monetizationService";
@@ -38,7 +39,8 @@ import {
   BarChart3,
   LineChart as LineChartIcon,
   Flame,
-  Target
+  Target,
+  Sparkles
 } from "lucide-react";
 
 interface OwnerSuiteProps {
@@ -523,7 +525,7 @@ export default function OwnerSuite({
           id="owner-subtab-ai-agent"
         >
           <Bot className="w-4 h-4" />
-          <span>🤖 AI Advertisement Agent (Exclusive Owner Control)</span>
+          <span>🤖 AI Paid Ads & Revenue Agent</span>
         </button>
 
         <button
@@ -566,14 +568,40 @@ export default function OwnerSuite({
       )}
 
       {activeOwnerSection === "ai_agent" && (
-        <div className="space-y-4">
-          <div className="bg-red-50 border border-red-200 p-4 rounded-2xl text-xs text-red-900 font-medium flex items-center gap-2">
-            <Bot className="w-5 h-5 text-red-600 shrink-0" />
-            <span>
-              <strong>Owner Private Portal:</strong> The Autonomous AI Advertising & System Installer Agent is strictly visible to you as Executive Owner. Non-owner users cannot see or access this tool.
+        <div className="space-y-6">
+          <div className="bg-red-50 border border-red-200 p-4 rounded-2xl text-xs text-red-900 font-medium flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Bot className="w-5 h-5 text-red-600 shrink-0" />
+              <span>
+                <strong>Owner Private AI Suite:</strong> Handles paid advertisements across Google, Nextdoor & Meta, facilitates business ad purchases, and displays real-time platform revenue.
+              </span>
+            </div>
+            <span className="text-[10px] font-black uppercase tracking-wider bg-red-200/80 text-red-900 px-2 py-0.5 rounded-full shrink-0">
+              Executive Only
             </span>
           </div>
-          <AutonomousAdInstallerAgent appUrl={window.location.origin} />
+
+          {/* Primary Owner Paid Advertisements & Revenue AI Agent */}
+          <OwnerPaidAdsAiAgent
+            contractorsList={contractorsList}
+            onTriggerEmailLog={onTriggerEmailLog}
+          />
+
+          {/* Collapsible Secondary Background Installer & Sprint Tools */}
+          <div className="bg-white border border-zinc-200 rounded-3xl p-5 shadow-xs space-y-4">
+            <details className="group">
+              <summary className="flex items-center justify-between cursor-pointer list-none font-bold text-xs text-zinc-700 hover:text-zinc-900 select-none">
+                <span className="flex items-center gap-2">
+                  <Sliders className="w-4 h-4 text-zinc-500" />
+                  <span>Advanced Autonomous Ad Daemon, 1,000 Sprint & Installer Tools</span>
+                </span>
+                <span className="text-xs text-zinc-400 group-open:rotate-180 transition-transform">▼</span>
+              </summary>
+              <div className="pt-4 border-t border-zinc-150 mt-4">
+                <AutonomousAdInstallerAgent appUrl={window.location.origin} />
+              </div>
+            </details>
+          </div>
         </div>
       )}
 
@@ -641,6 +669,36 @@ export default function OwnerSuite({
           <p className="text-2xl font-black font-mono text-amber-600">${(monthlySubscriptionRev + totalServiceCommissions + (monetizationStats.platformGrossRevenue || 0)).toFixed(2)}</p>
           <p className="text-[11px] text-zinc-500 mt-1">Routing to Chase Bank N.A. (****-9185)</p>
         </div>
+      </div>
+
+      {/* Direct AI Paid Ad Concierge CTA Banner */}
+      <div className="bg-gradient-to-r from-red-950 via-zinc-900 to-amber-950 border-2 border-red-500/50 rounded-3xl p-5 text-white shadow-xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative overflow-hidden">
+        <div className="flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-red-600 to-amber-600 flex items-center justify-center text-white text-xl shadow-lg shrink-0">
+            <Bot className="w-6 h-6 animate-pulse" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="bg-red-500/30 text-red-300 border border-red-500/50 text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
+                Owner AI System
+              </span>
+              <h3 className="font-display font-black text-base text-white">
+                AI Paid Advertisements & Business Ad Purchase Concierge
+              </h3>
+            </div>
+            <p className="text-xs text-zinc-300 mt-0.5">
+              Help businesses purchase ad blitzes across Google LSA, Nextdoor & Meta with voice-to-text input, and track real-time platform revenue.
+            </p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setActiveOwnerSection("ai_agent")}
+          className="bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 text-white font-extrabold px-4 py-2.5 rounded-xl text-xs flex items-center gap-2 shadow-lg transition cursor-pointer shrink-0"
+        >
+          <Sparkles className="w-4 h-4 text-amber-200" />
+          <span>Launch AI Ad Agent & Revenue Hub</span>
+        </button>
       </div>
 
       {/* LIVE MONETIZATION & STRIPE CASH INFLOW ENGINE */}

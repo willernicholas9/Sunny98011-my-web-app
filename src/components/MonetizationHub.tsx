@@ -24,7 +24,11 @@ import {
   Smartphone,
   Send,
   Sliders,
-  HelpCircle
+  HelpCircle,
+  Truck,
+  Pin,
+  FileText,
+  ShieldAlert
 } from "lucide-react";
 import { ContractorUser, CustomerUser, Project, UserRole, MonetizationTransaction, PlatformMonetizationStats } from "../types";
 import { monetizationService } from "../services/monetizationService";
@@ -48,7 +52,7 @@ export default function MonetizationHub({
   onUpdateContractor,
   onTriggerEmailLog
 }: MonetizationHubProps) {
-  const [activeSubTab, setActiveSubTab] = useState<"contractor_plans" | "job_boosts" | "lead_credits" | "owner_revenue">("contractor_plans");
+  const [activeSubTab, setActiveSubTab] = useState<"contractor_plans" | "job_boosts" | "lead_credits" | "new_revenue_products" | "owner_revenue">("contractor_plans");
   const [billingCycle, setBillingCycle] = useState<"monthly" | "annual">("monthly");
   const [transactions, setTransactions] = useState<MonetizationTransaction[]>(monetizationService.getTransactions());
   const [stats, setStats] = useState<PlatformMonetizationStats>(monetizationService.getPlatformStats(projects, contractors));
@@ -225,7 +229,7 @@ export default function MonetizationHub({
               Monetize Hot Spot Workshop
             </h1>
             <p className="text-sm text-zinc-300 max-w-2xl leading-relaxed">
-              Active live monetization: **Contractor Pro Subscriptions ($29/mo)**, **Homeowner Job Boosts ($9.99–$29.99)**, and **3% Escrow Platform Take-Rate**. Customer contact info on accepted projects is **100% FREE ($0 fee)**.
+              Active live monetization: **Contractor Pro Subscriptions ($29.99/mo)**, **Homeowner Job Boosts ($9.99–$29.99)**, and **3% Escrow Platform Take-Rate**. Customer contact info on accepted projects is **100% FREE ($0 fee)**.
             </p>
           </div>
 
@@ -250,6 +254,29 @@ export default function MonetizationHub({
               </span>
             </div>
           </div>
+        </div>
+
+        {/* First 1,000 Free Month Special Announcement */}
+        <div className="mt-5 p-3.5 bg-gradient-to-r from-amber-500/25 via-amber-400/20 to-amber-500/25 border border-amber-400/50 rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-amber-400 text-zinc-950 rounded-xl font-black shrink-0">
+              🎁
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <span className="font-extrabold text-amber-300 text-sm">First 1,000 Signups: 1 Month 100% Free Platform Use</span>
+                <span className="bg-amber-400 text-zinc-950 font-black text-[10px] px-2 py-0.5 rounded-full uppercase">
+                  Runs until Oct 28, 2026
+                </span>
+              </div>
+              <p className="text-zinc-300 text-[11px] mt-0.5">
+                Contractors receive 1 Month Free Pro ($29.99/mo waived) with unlimited job leads. Homeowners receive 100% waived contract acceptance fees ($0 instead of $7.99/$20.00).
+              </p>
+            </div>
+          </div>
+          <span className="bg-zinc-950/70 border border-amber-400/40 text-amber-300 font-mono font-bold text-xs px-3 py-1.5 rounded-xl shrink-0">
+            Open to All Early Adopters
+          </span>
         </div>
 
         {/* Live Service Status Indicator Bar */}
@@ -331,6 +358,20 @@ export default function MonetizationHub({
         >
           <Zap className="w-4 h-4" />
           <span>⚡ Lead Credits Wallet</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActiveSubTab("new_revenue_products")}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-extrabold transition cursor-pointer shrink-0 ${
+            activeSubTab === "new_revenue_products"
+              ? "bg-amber-500 text-zinc-950 shadow-sm"
+              : "text-zinc-600 hover:bg-zinc-100"
+          }`}
+          id="tab-new-revenue-products"
+        >
+          <Sparkles className="w-4 h-4" />
+          <span>✨ New Revenue Channels (Zero Fee Hikes)</span>
         </button>
 
         <button
@@ -437,10 +478,10 @@ export default function MonetizationHub({
                 <div>
                   <div className="flex items-baseline gap-1">
                     <span className="text-3xl sm:text-4xl font-black text-zinc-950">
-                      ${billingCycle === "annual" ? "24.16" : "29"}
+                      ${billingCycle === "annual" ? "24.99" : "29.99"}
                     </span>
                     <span className="text-xs text-zinc-600 font-bold">
-                      {billingCycle === "annual" ? "/ mo (billed $290/yr)" : "/ month"}
+                      {billingCycle === "annual" ? "/ mo (billed $299/yr)" : "/ month"}
                     </span>
                   </div>
                   <p className="text-xs text-zinc-600 mt-1">Get 5x more homeowner jobs with top priority rankings.</p>
@@ -804,7 +845,588 @@ export default function MonetizationHub({
       )}
 
       {/* ========================================================================= */}
-      {/* 4. PLATFORM OWNER REVENUE & FINANCIAL LEDGER */}
+      {/* 4. NEW REVENUE STREAMS (ZERO EXISTING FEES RAISED) */}
+      {/* ========================================================================= */}
+      {activeSubTab === "new_revenue_products" && (
+        <div className="space-y-6 animate-in fade-in" id="new-revenue-products-view">
+          {/* Header Banner */}
+          <div className="bg-gradient-to-r from-zinc-900 via-slate-900 to-zinc-900 rounded-3xl p-6 sm:p-8 text-white border border-zinc-800 shadow-xl relative overflow-hidden">
+            <div className="relative z-10 max-w-3xl space-y-3">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-black uppercase tracking-wider">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Zero Existing Fees Raised &bull; 100% Incremental Platform Revenue</span>
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black text-white font-display">
+                8 High-Margin Monetization Add-Ons
+              </h3>
+              <p className="text-zinc-300 text-xs sm:text-sm leading-relaxed">
+                Expand platform earnings without altering Contractor Pro ($29/mo), Escrow commissions (3%), or free lead unlocks. These new opt-in services provide immediate trust, code compliance, and jobsite logistics for active trade professionals and homeowners.
+              </p>
+            </div>
+            <div className="absolute right-0 bottom-0 opacity-10 pointer-events-none translate-x-8 translate-y-8">
+              <DollarSign className="w-80 h-80 text-amber-400" />
+            </div>
+          </div>
+
+          {/* Product Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {/* 1. Verified Background Check & State License Badge */}
+            <div className="bg-white border-2 border-amber-200 hover:border-amber-400 rounded-3xl p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300">
+                    For Contractors
+                  </span>
+                  <div className="text-xl font-black text-zinc-950 font-mono">
+                    $19.00 <span className="text-[11px] font-normal text-zinc-500">one-time</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 pt-1">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/20 text-amber-600 flex items-center justify-center font-black shrink-0">
+                    <Award className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-zinc-900 leading-tight">
+                      Verified License & Criminal Background Shield
+                    </h4>
+                    <span className="text-[11px] text-zinc-500">State Registry + Criminal Record Audit</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-zinc-600 leading-relaxed">
+                  Fast-track state trade license verification and criminal background audit. Displays a prestigious permanent Gold Shield badge across all client searches.
+                </p>
+
+                <ul className="space-y-1.5 text-xs text-zinc-700 pt-2 border-t border-zinc-150">
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Permanent Golden Trust Shield on profile</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>3.4x higher homeowner proposal response</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Algorithmic top-tier ranking in directory</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsProcessing(true);
+                  const contractorToVerify = currentUser && currentUser.role === "contractor" ? currentUser : contractors[0];
+                  const res = await monetizationService.purchaseVerifiedBadge(contractorToVerify);
+                  setIsProcessing(false);
+                  setPaymentSuccessNotice(res.message);
+                  onAlert(res.message);
+                }}
+                disabled={isProcessing}
+                className="mt-6 w-full py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold text-xs shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Award className="w-4 h-4" />
+                <span>Order Verified Badge ($19)</span>
+              </button>
+            </div>
+
+            {/* 2. $10,000 Guaranteed Homeowner Protection Warranty Bond */}
+            <div className="bg-white border-2 border-indigo-200 hover:border-indigo-400 rounded-3xl p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-900 border border-indigo-300">
+                    For Homeowners
+                  </span>
+                  <div className="text-xl font-black text-zinc-950 font-mono">
+                    $14.99 <span className="text-[11px] font-normal text-zinc-500">per project</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 pt-1">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 text-indigo-600 flex items-center justify-center font-black shrink-0">
+                    <ShieldAlert className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-zinc-900 leading-tight">
+                      $10,000 Guaranteed Workmanship Warranty Bond
+                    </h4>
+                    <span className="text-[11px] text-zinc-500">100% Homeowner Peace-of-Mind</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-zinc-600 leading-relaxed">
+                  Back your job with $10,000 warranty bond coverage protecting against contractor abandonment, property damage, or building code failure.
+                </p>
+
+                <ul className="space-y-1.5 text-xs text-zinc-700 pt-2 border-t border-zinc-150">
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span>$10,000 surety bond for job completion</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span>Dedicated dispute arbitrator in 2 hours</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span>100% escrow refund backing on inspection fail</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsProcessing(true);
+                  const targetProj = projects[0];
+                  if (!targetProj) {
+                    onAlert("No projects available to protect.");
+                    setIsProcessing(false);
+                    return;
+                  }
+                  const res = await monetizationService.purchaseWarrantyBond(targetProj, {
+                    id: currentUser?.id || "cust-1",
+                    fullName: currentUser?.fullName || "Sarah Jenkins",
+                    role: "customer"
+                  });
+                  setIsProcessing(false);
+                  setPaymentSuccessNotice(`🎉 Workmanship Warranty Bond attached to "${targetProj.title}"! ($14.99 added to platform revenue)`);
+                  onAlert(`🎉 Workmanship Warranty Bond attached to "${targetProj.title}"!`);
+                }}
+                disabled={isProcessing}
+                className="mt-6 w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <ShieldCheck className="w-4 h-4" />
+                <span>Attach $10k Bond ($14.99)</span>
+              </button>
+            </div>
+
+            {/* 3. Official City Permit Submittal & Code Compliance Packet */}
+            <div className="bg-white border-2 border-teal-200 hover:border-teal-400 rounded-3xl p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-teal-100 text-teal-900 border border-teal-300">
+                    City Hall Ready
+                  </span>
+                  <div className="text-xl font-black text-zinc-950 font-mono">
+                    $9.99 <span className="text-[11px] font-normal text-zinc-500">export</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 pt-1">
+                  <div className="w-10 h-10 rounded-2xl bg-teal-500/20 text-teal-600 flex items-center justify-center font-black shrink-0">
+                    <FileText className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-zinc-900 leading-tight">
+                      Official City Permit & Code Submittal Packet
+                    </h4>
+                    <span className="text-[11px] text-zinc-500">Municipal Inspector Compliant</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-zinc-600 leading-relaxed">
+                  Automate preparation of city building permit submittal packages complete with materials schedule, contractor license signoffs, and inspection checklists.
+                </p>
+
+                <ul className="space-y-1.5 text-xs text-zinc-700 pt-2 border-t border-zinc-150">
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    <span>50-State municipal checklist & scope breakdown</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    <span>Contractor license & digital signature block</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                    <span>Instant PDF download with permit review seal</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsProcessing(true);
+                  const targetProj = projects[0];
+                  if (!targetProj) {
+                    onAlert("No projects available to export.");
+                    setIsProcessing(false);
+                    return;
+                  }
+                  await monetizationService.purchasePermitPacket(targetProj, {
+                    id: currentUser?.id || "user-1",
+                    fullName: currentUser?.fullName || "Dave Miller",
+                    role: "contractor"
+                  });
+                  setIsProcessing(false);
+                  setPaymentSuccessNotice(`🎉 Official Permit Packet generated for "${targetProj.title}"! ($9.99 added to platform revenue)`);
+                  onAlert(`🎉 Official Permit Packet generated for "${targetProj.title}"!`);
+                }}
+                disabled={isProcessing}
+                className="mt-6 w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-extrabold text-xs shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Export Permit Packet ($9.99)</span>
+              </button>
+            </div>
+
+            {/* 4. Commercial Equipment & Roll-Off Dumpster Rental Dispatch Pass */}
+            <div className="bg-white border-2 border-orange-200 hover:border-orange-400 rounded-3xl p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-orange-100 text-orange-900 border border-orange-300">
+                    Jobsite Logistics
+                  </span>
+                  <div className="text-xl font-black text-zinc-950 font-mono">
+                    $25.00 <span className="text-[11px] font-normal text-zinc-500">bounty</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 pt-1">
+                  <div className="w-10 h-10 rounded-2xl bg-orange-500/20 text-orange-600 flex items-center justify-center font-black shrink-0">
+                    <Truck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-zinc-900 leading-tight">
+                      Equipment & Roll-Off Dumpster Dispatch Pass
+                    </h4>
+                    <span className="text-[11px] text-zinc-500">United Rentals & Sunbelt Partner Network</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-zinc-600 leading-relaxed">
+                  On-demand contractor booking for 10/20/30-yard jobsite dumpsters, skid steers, and mini-excavators with exclusive contractor wholesale pricing.
+                </p>
+
+                <ul className="space-y-1.5 text-xs text-zinc-700 pt-2 border-t border-zinc-150">
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+                    <span>Guaranteed next-morning jobsite placement</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+                    <span>Saves contractor up to $150 per dumpster haul</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-orange-600 shrink-0" />
+                    <span>$25 partner referral bounty credited to platform</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsProcessing(true);
+                  const contractor = currentUser && currentUser.role === "contractor" ? currentUser : contractors[0];
+                  await monetizationService.purchaseEquipmentDispatch(contractor, "20-Yard Roll-Off Dumpster", 7);
+                  setIsProcessing(false);
+                  setPaymentSuccessNotice(`🎉 Commercial Dumpster dispatched for ${contractor.company || contractor.fullName}! ($25.00 referral fee collected)`);
+                  onAlert(`🎉 Commercial Dumpster dispatched! ($25.00 referral fee collected)`);
+                }}
+                disabled={isProcessing}
+                className="mt-6 w-full py-2.5 rounded-xl bg-orange-600 hover:bg-orange-500 text-white font-extrabold text-xs shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Truck className="w-4 h-4" />
+                <span>Book Dumpster Dispatch ($25)</span>
+              </button>
+            </div>
+
+            {/* 5. 48-Hour Top City Hub Spotlight Pin */}
+            <div className="bg-white border-2 border-fuchsia-200 hover:border-fuchsia-400 rounded-3xl p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-fuchsia-100 text-fuchsia-900 border border-fuchsia-300">
+                    City Spotlight
+                  </span>
+                  <div className="text-xl font-black text-zinc-950 font-mono">
+                    $14.99 <span className="text-[11px] font-normal text-zinc-500">48 hours</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 pt-1">
+                  <div className="w-10 h-10 rounded-2xl bg-fuchsia-500/20 text-fuchsia-600 flex items-center justify-center font-black shrink-0">
+                    <Pin className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-zinc-900 leading-tight">
+                      48-Hour City Hub Top Spotlight Pin
+                    </h4>
+                    <span className="text-[11px] text-zinc-500">Pinned to Top Header Banner</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-zinc-600 leading-relaxed">
+                  Pin your trade profile to the very top banner of your local city hub for 48 hours. Delivers immediate surges in customer phone calls and project bids.
+                </p>
+
+                <ul className="space-y-1.5 text-xs text-zinc-700 pt-2 border-t border-zinc-150">
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-fuchsia-600 shrink-0" />
+                    <span>Fixed at #1 carousel spotlight of your metro</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-fuchsia-600 shrink-0" />
+                    <span>Glowing 'Available Now' emergency pulse tag</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-fuchsia-600 shrink-0" />
+                    <span>Average 5.2x more homeowner calls & bids</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsProcessing(true);
+                  const contractor = currentUser && currentUser.role === "contractor" ? currentUser : contractors[0];
+                  await monetizationService.purchaseSpotlightPin(contractor, 48);
+                  setIsProcessing(false);
+                  setPaymentSuccessNotice(`🎉 ${contractor.fullName} is now pinned to the ${contractor.city} Hub for 48 hours! ($14.99 collected)`);
+                  onAlert(`🎉 Contractor pinned to ${contractor.city} Hub for 48 hours!`);
+                }}
+                disabled={isProcessing}
+                className="mt-6 w-full py-2.5 rounded-xl bg-fuchsia-600 hover:bg-fuchsia-500 text-white font-extrabold text-xs shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Pin className="w-4 h-4" />
+                <span>Pin to City Spotlight ($14.99)</span>
+              </button>
+            </div>
+
+            {/* 6. Instant Same-Day Escrow Payout Express */}
+            <div className="bg-white border-2 border-emerald-200 hover:border-emerald-400 rounded-3xl p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300">
+                    Express Cashout
+                  </span>
+                  <div className="text-xl font-black text-zinc-950 font-mono">
+                    $9.99 <span className="text-[11px] font-normal text-zinc-500">per payout</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 pt-1">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-600 flex items-center justify-center font-black shrink-0">
+                    <Zap className="w-5 h-5 fill-emerald-600" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-zinc-900 leading-tight">
+                      Instant Same-Day Escrow Payout Express
+                    </h4>
+                    <span className="text-[11px] text-zinc-500">RTP / Instant Debit Card Payout</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-zinc-600 leading-relaxed">
+                  Bypass standard 2-3 business day ACH bank transfers. Receive released project milestone earnings directly into your debit card within 30 minutes.
+                </p>
+
+                <ul className="space-y-1.5 text-xs text-zinc-700 pt-2 border-t border-zinc-150">
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Real-Time Payout (RTP) direct to Visa/Mastercard</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Immediate cash flow for materials & crew wages</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span>Flat $9.99 convenience fee (no percentage markup)</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsProcessing(true);
+                  const contractor = currentUser && currentUser.role === "contractor" ? currentUser : contractors[0];
+                  await monetizationService.purchaseInstantEscrowExpress(contractor, 1250, "Stage 2 Rough-In");
+                  setIsProcessing(false);
+                  setPaymentSuccessNotice(`⚡ $1,250.00 Express Payout dispatched to ${contractor.fullName}'s debit card! ($9.99 collected)`);
+                  onAlert(`⚡ Instant Escrow Express Payout executed! ($9.99 collected)`);
+                }}
+                disabled={isProcessing}
+                className="mt-6 w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-xs shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Zap className="w-4 h-4 fill-white" />
+                <span>Simulate Instant Cashout ($9.99)</span>
+              </button>
+            </div>
+
+            {/* 7. Official Subcontractor Lien Waiver & 1-Year Warranty Vault */}
+            <div className="bg-white border-2 border-indigo-200 hover:border-indigo-400 rounded-3xl p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-900 border border-indigo-300">
+                    Legal Protection
+                  </span>
+                  <div className="text-xl font-black text-zinc-950 font-mono">
+                    $14.99 <span className="text-[11px] font-normal text-zinc-500">per project</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 pt-1">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 text-indigo-600 flex items-center justify-center font-black shrink-0">
+                    <ShieldCheck className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-zinc-900 leading-tight">
+                      Subcontractor Lien Waiver & Warranty Vault
+                    </h4>
+                    <span className="text-[11px] text-zinc-500">Mechanic's Lien Immunity & Bond</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-zinc-600 leading-relaxed">
+                  Automated state-compliant progress & final lien waiver certificates signed by all trade subcontractors. Protects homeowners against unexpected mechanic's liens.
+                </p>
+
+                <ul className="space-y-1.5 text-xs text-zinc-700 pt-2 border-t border-zinc-150">
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span>Legally binding unconditional lien releases</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span>Includes 1-Year Workmanship Warranty Certificate</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+                    <span>Timestamped PDF downloadable vault</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsProcessing(true);
+                  const proj = projects[0];
+                  const user = currentUser || { id: "cust-1", fullName: "Sarah Jenkins", role: "customer" as const };
+                  await monetizationService.purchaseLienWaiverPackage(proj, user);
+                  setIsProcessing(false);
+                  setPaymentSuccessNotice(`📜 Official Lien Waiver Package issued for "${proj.title}"! ($14.99 collected)`);
+                  onAlert(`📜 Official Lien Waiver Package issued! ($14.99 collected)`);
+                }}
+                disabled={isProcessing}
+                className="mt-6 w-full py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold text-xs shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <FileText className="w-4 h-4" />
+                <span>Issue Lien Waiver Vault ($14.99)</span>
+              </button>
+            </div>
+
+            {/* 8. Subcontractor Crew VIP 45-Mile Urgent Blast */}
+            <div className="bg-white border-2 border-blue-200 hover:border-blue-400 rounded-3xl p-6 shadow-sm hover:shadow-md transition flex flex-col justify-between">
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-blue-100 text-blue-900 border border-blue-300">
+                    Crew Dispatch
+                  </span>
+                  <div className="text-xl font-black text-zinc-950 font-mono">
+                    $19.00 <span className="text-[11px] font-normal text-zinc-500">per blast</span>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 pt-1">
+                  <div className="w-10 h-10 rounded-2xl bg-blue-500/20 text-blue-600 flex items-center justify-center font-black shrink-0">
+                    <Users className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h4 className="font-extrabold text-sm text-zinc-900 leading-tight">
+                      Urgent 45-Mile Subcontractor Crew VIP Blast
+                    </h4>
+                    <span className="text-[11px] text-zinc-500">Direct Crew Dispatch via SMS</span>
+                  </div>
+                </div>
+
+                <p className="text-xs text-zinc-600 leading-relaxed">
+                  General contractors needing extra framing, drywall, or roofing crews on short notice can broadcast urgent crew requests to all registered crews within 45 miles.
+                </p>
+
+                <ul className="space-y-1.5 text-xs text-zinc-700 pt-2 border-t border-zinc-150">
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span>Instant SMS & Push to 35+ verified trade crews</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span>Average 2.4 crew responses in under 45 minutes</span>
+                  </li>
+                  <li className="flex items-center gap-2">
+                    <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />
+                    <span>Pinned at top of Subcontractor Crew Board</span>
+                  </li>
+                </ul>
+              </div>
+
+              <button
+                type="button"
+                onClick={async () => {
+                  setIsProcessing(true);
+                  const contractor = currentUser && currentUser.role === "contractor" ? currentUser : contractors[0];
+                  await monetizationService.purchaseCrewVipBlast(contractor, "Drywall & Framing", contractor.city || "Austin");
+                  setIsProcessing(false);
+                  setPaymentSuccessNotice(`🚀 45-Mile Subcontractor Crew VIP Blast dispatched! ($19.00 collected)`);
+                  onAlert(`🚀 45-Mile Subcontractor Crew VIP Blast dispatched! ($19.00 collected)`);
+                }}
+                disabled={isProcessing}
+                className="mt-6 w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-xs shadow-xs transition cursor-pointer flex items-center justify-center gap-2"
+              >
+                <Users className="w-4 h-4" />
+                <span>Launch Crew VIP Blast ($19)</span>
+              </button>
+            </div>
+
+            {/* Summary Policy Card */}
+            <div className="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 text-white flex flex-col justify-between">
+              <div className="space-y-3">
+                <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  Policy Guarantee
+                </span>
+                <h4 className="font-extrabold text-sm text-white">
+                  Zero Fee Hikes Guarantee
+                </h4>
+                <p className="text-xs text-zinc-400 leading-relaxed">
+                  The platform strictly maintains all existing rates:
+                </p>
+                <div className="space-y-2 text-xs text-zinc-300">
+                  <div className="flex justify-between border-b border-zinc-800 pb-1">
+                    <span>Contractor Pro:</span>
+                    <strong className="text-amber-400">$29.99/mo (Unchanged)</strong>
+                  </div>
+                  <div className="flex justify-between border-b border-zinc-800 pb-1">
+                    <span>Escrow Platform Take:</span>
+                    <strong className="text-emerald-400">3% (Unchanged)</strong>
+                  </div>
+                  <div className="flex justify-between border-b border-zinc-800 pb-1">
+                    <span>Standard Job Boost:</span>
+                    <strong className="text-zinc-200">$9.99 (Unchanged)</strong>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Lead Contact Unlock:</span>
+                    <strong className="text-emerald-400">100% Free on Accept</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-zinc-800 text-[11px] text-zinc-400 italic">
+                All 5 new streams operate on high-margin convenience & safety guarantees.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* 5. PLATFORM OWNER REVENUE & FINANCIAL LEDGER */}
       {/* ========================================================================= */}
       {activeSubTab === "owner_revenue" && (
         <div className="space-y-6 animate-in fade-in" id="owner-revenue-view">

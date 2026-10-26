@@ -38,13 +38,13 @@ function DashboardStatsComponent({ currentUser, projects, bids }: DashboardStats
   // Fees Collected/Paid on behalf of the user
   const platformFeesCollected = userProjects
     .filter((p) => p.agreedByCustomer && p.agreedByContractor)
-    .reduce((sum, p) => sum + (p.serviceFeeCharge !== undefined ? p.serviceFeeCharge : (p.budget <= 25000 ? 5 : 20)), 0);
+    .reduce((sum, p) => sum + (p.serviceFeeCharge !== undefined ? p.serviceFeeCharge : (p.budget <= 25000 ? 7.99 : 20)), 0);
 
   // Total potential platform fees from all customer's open listings
   const pendingPlatformFees = isCustomer
     ? userProjects
         .filter((p) => !(p.agreedByCustomer && p.agreedByContractor))
-        .reduce((sum, p) => sum + (p.serviceFeeCharge !== undefined ? p.serviceFeeCharge : (p.budget <= 25000 ? 5 : 20)), 0)
+        .reduce((sum, p) => sum + (p.serviceFeeCharge !== undefined ? p.serviceFeeCharge : (p.budget <= 25000 ? 7.99 : 20)), 0)
     : 0;
 
   return (
@@ -139,19 +139,23 @@ function DashboardStatsComponent({ currentUser, projects, bids }: DashboardStats
           <span>
             {isCustomer ? (
               <>
-                <strong className="text-zinc-800">Hot Spot Platform Policy:</strong> Homeowners are charged a low service fee of <strong className="text-zinc-850">$5.00</strong> (jobs under $25,000) or <strong className="text-zinc-850">$20.00</strong> (jobs over $25,000) <span className="underline decoration-amber-500">only after both parties mutually authorize</span> the contract. Bids & proposals are 100% free to post and receive.
-                {currentUser?.sharedWithFriend && (
+                <strong className="text-zinc-800">Hot Spot Platform Policy:</strong> Homeowners are charged a low customer acceptance fee of <strong className="text-zinc-850">$7.99</strong> (jobs under $25,000) or <strong className="text-zinc-850">$20.00</strong> (jobs over $25,000) <span className="underline decoration-amber-500">only after both parties mutually authorize</span> the contract. Bids & proposals are 100% free to post and receive.
+                {currentUser?.sharedWithFriend ? (
                   <span className="block mt-1 text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/50 w-fit">
-                    🎁 LAUNCH SPECIAL ACTIVE: Your first mutual job agreement fee is completely FREE ($0.00)!
+                    🎁 $25 NEIGHBOR REFERRAL CREDIT ACTIVE: First job customer acceptance fee is 100% FREE ($0.00) + $25 credit applied!
+                  </span>
+                ) : (
+                  <span className="block mt-1 text-amber-700 font-medium text-[10px]">
+                    🎁 Give $25, Get $25: Share your invite link with a neighbor for a $25.00 project credit!
                   </span>
                 )}
               </>
             ) : (
               <>
-                <strong className="text-zinc-800">Contractor Platform Policy:</strong> Professional accounts have a flat monthly subscription of <strong className="text-zinc-850">{currentUser?.sharedWithFriend ? "FREE ($0.00/mo)" : "$20.00/mo"}</strong> (Active: <span className="text-emerald-700 font-bold">Yes</span>). Homeowners pay the low per-project service fees directly. Placed bids are free & direct.
+                <strong className="text-zinc-800">Contractor Platform Policy:</strong> Professional accounts have a flat monthly subscription of <strong className="text-zinc-850">{currentUser?.sharedWithFriend ? "FREE ($0.00/mo)" : "$29.99/mo"}</strong> (Active: <span className="text-emerald-700 font-bold">Yes</span>). Homeowners pay the low per-project acceptance fees directly. Placed bids are free & direct.
                 {currentUser?.sharedWithFriend && (
                   <span className="block mt-1 text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200/50 w-fit">
-                    🎁 LAUNCH SPECIAL ACTIVE: First month's premium membership subscription fee is fully waived to $0.00!
+                    🎁 PROMO ACTIVE: First month's $29.99 premium membership subscription is fully waived to $0.00!
                   </span>
                 )}
               </>

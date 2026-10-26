@@ -388,6 +388,9 @@ export function ActiveTradesInsightsComponent({
     const bisectDate = d3.bisector<DataPoint, Date>((d) => d.date).left;
 
     // Overlay rect for pointer events
+    let currentHoveredTime: number | null = null;
+    let pointerRaf: number | null = null;
+
     mainG.append("rect")
       .attr("width", innerWidth)
       .attr("height", innerHeight)
@@ -395,28 +398,41 @@ export function ActiveTradesInsightsComponent({
       .attr("cursor", "crosshair")
       .on("mouseenter", () => focusG.style("display", null))
       .on("mouseleave", () => {
+        if (pointerRaf) {
+          cancelAnimationFrame(pointerRaf);
+          pointerRaf = null;
+        }
+        currentHoveredTime = null;
         focusG.style("display", "none");
         setHoveredPoint(null);
       })
       .on("mousemove", (event) => {
+        if (pointerRaf) return;
         const [mx] = d3.pointer(event);
-        const x0 = xScale.invert(mx);
-        const i = bisectDate(chartData, x0, 1);
-        const d0 = chartData[i - 1];
-        const d1 = chartData[i];
-        let d = d0;
-        if (d0 && d1) {
-          d = x0.getTime() - d0.date.getTime() > d1.date.getTime() - x0.getTime() ? d1 : d0;
-        }
+        pointerRaf = requestAnimationFrame(() => {
+          pointerRaf = null;
+          const x0 = xScale.invert(mx);
+          const i = bisectDate(chartData, x0, 1);
+          const d0 = chartData[i - 1];
+          const d1 = chartData[i];
+          let d = d0;
+          if (d0 && d1) {
+            d = x0.getTime() - d0.date.getTime() > d1.date.getTime() - x0.getTime() ? d1 : d0;
+          }
 
-        if (d) {
-          const xPos = xScale(d.date);
-          const yPos = yScale(d.value);
+          if (d) {
+            const time = d.date.getTime();
+            if (time !== currentHoveredTime) {
+              currentHoveredTime = time;
+              const xPos = xScale(d.date);
+              const yPos = yScale(d.value);
 
-          verticalLine.attr("x1", xPos).attr("x2", xPos);
-          focusCircle.attr("cx", xPos).attr("cy", yPos);
-          setHoveredPoint(d);
-        }
+              verticalLine.attr("x1", xPos).attr("x2", xPos);
+              focusCircle.attr("cx", xPos).attr("cy", yPos);
+              setHoveredPoint(d);
+            }
+          }
+        });
       });
 
   }, [chartData, dimensions, metricType, timeframe]);
